@@ -1,7 +1,7 @@
-# 3D Active gel vertex model for simulating inflating and deflating spherical epithelial domes
+# Computational model bridging active gels to vertex models
 
 
-The present work is a [hiperlife](https://doi.org/10.5281/zenodo.14927572) [[1](#References)] based project for simulating inflating and deflating epithelial domes using vertex modelling. In this model [[2,3](#References)], the mechanical behavior of each cellular surface is described with an active gel model of the actomyosin cortex capturing its viscoelasticity, active contractility and turnover. Cell surfaces are triangulated resulting in a 3D vertex model with curved cellular surfaces and the model is solved on each of these surfaces using finite elements. To limit cell interpenetration, we included a repulsive potential between cells. Additionally, surfaces enclose fixed cellular volumes. 
+The present work is a [hiperlife](https://doi.org/10.5281/zenodo.14927572) [[1](#References)] based project for simulating epithelial dynamics under stretch. In this model [[2](#References)], the mechanical behavior of each cellular surface is described with an active gel model of the actomyosin cortex capturing its viscoelasticity, active contractility and turnover. Cell surfaces are triangulated resulting in a 3D vertex model with curved cellular surfaces and the model is solved on each of these surfaces using finite elements. To limit cell interpenetration, we included a repulsive potential between cells. Additionally, surfaces enclose fixed cellular volumes. 
 
 ## License 
 Distributed under the GNU GENERAL PUBLIC LICENSE. See [LICENSE](LICENSE) for details.
@@ -109,7 +109,5 @@ You can acknowledge this package in any publication that relies on it using refe
 
 [1] Santos-Oliván, D., Vilanova, G., & Torres-Sánchez, A. (2025). hiperlife. Zenodo. https://doi.org/10.5281/zenodo.14927572
 
-[2] Nimesh Chahare, Adam Ouzeri, Thomas Wilson, Pradeep K. Bal, Tom Golde, Guillermo Vilanova, Pau Pujol-Vives, Pere Roca-Cusachs, Xavier Trepat, Marino Arroyo. Multiscale wrinkling dynamics in epithelial shells. bioRxiv 2025.06.30.662426; doi: https://doi.org/10.1101/2025.06.30.662426
-
-[3] Adam Ouzeri. Theory and computation of multiscale epithelial mechanics : from active gels to vertex models. Doctoral thesis. doi: https://doi.org/10.5821/dissertation-2117-402162
+[2] Adam Ouzeri. Theory and computation of multiscale epithelial mechanics : from active gels to vertex models. Doctoral thesis. doi: https://doi.org/10.5821/dissertation-2117-402162
 
