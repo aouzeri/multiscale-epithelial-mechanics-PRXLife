@@ -3,14 +3,14 @@
     Copyright (c) 2017-2025
     Authors/Contributors: Adam Ouzeri, Sohan Kale, Alejandro Torres-Sánchez, Daniel Santos-Oliván
     *******************************************************************************
-    This file is part of agvm_domes
-    Project homepage: https://github.com/aouzeri/agvm_domes
+    This file is part of agvm
+    Project homepage: https://github.com/aouzeri/multiscale-epithelial-mechanics-PRXLife
     Distributed under the GNU General Public License, see the accompanying
     file LICENSE or https://opensource.org/license/gpl-3-0.
     *******************************************************************************
 */
 
-#include "AuxVXDomes.h"
+#include "AuxVX.h"
 #include "hl_LocMongeParam.h"
 #include "hl_StructMeshGenerator.h"
 #include "hl_BasicMeshGenerator.h"

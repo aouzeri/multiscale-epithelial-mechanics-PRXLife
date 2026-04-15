@@ -3,8 +3,8 @@
     Copyright (c) 2017-2025
     Authors/Contributors: Adam Ouzeri, Sohan Kale, Alejandro Torres-Sánchez, Daniel Santos-Oliván
     *******************************************************************************
-    This file is part of agvm_domes
-    Project homepage: https://github.com/aouzeri
+    This file is part of agvm
+    Project homepage: https://github.com/aouzeri/multiscale-epithelial-mechanics-PRXLife
     Distributed under the GNU General Public License, see the accompanying
     file LICENSE or https://opensource.org/license/gpl-3-0.
     *******************************************************************************
@@ -30,7 +30,7 @@
 #include "hl_NonlinearSolver_NewtonRaphson.h"
 
 #include "hl_DOFsHandler.h"
-#include "AuxVXDomes.h"
+#include "AuxVX.h"
 
 #include <random>
 #include <hl_Timer.h>

@@ -3,7 +3,7 @@
 #------------------------------------------------------------
 
 #Name
-set(PROGRAMME_NAME "hlVXDomes")
+set(PROGRAMME_NAME "hlVX")
 
 #Info
 message(STATUS "Programme name: ${PROGRAMME_NAME} ")

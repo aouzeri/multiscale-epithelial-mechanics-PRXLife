@@ -1,6 +1,6 @@
 # Installation instructions
-Installation guide for Activel gel vertex model of spherical domes
-This document explains how to install and set up the vertex model application on your system.
+Installation guide for the Activel gel vertex model (agvm).
+This document explains how to install and set up the computational model on your system.
 
 
 ## Installing hiperlife
@@ -50,7 +50,7 @@ make -jX install
 ```
 
 
-## Installing agvm_domes
+## Installing agvm
 
 We followed the instruction given [here](https://gitlab.com/hiperlife/hl-base-project) for creating a hiperlife-base project. 
 
@@ -68,7 +68,7 @@ Then configure the project :
 ```bash
 cmake -DHL_BASE_PATH=<path/to/install/hiperlife>  -DCMAKE_INSTALL_PREFIX=<path/to/install/app> -DCMAKE_BUILD_TYPE=RELEASE ..
 ```
-where <path/to/install/hiperlife> is the path where the library has been installed (e.g. ~/.local/hiperlife) and <path/to/install/app> is the path where the application executable will be installed (e.g. in a new folder ~/.local/agvm_domes). Note that the name of the executable is *hlVXDomes*.
+where <path/to/install/hiperlife> is the path where the library has been installed (e.g. ~/.local/hiperlife) and <path/to/install/app> is the path where the application executable will be installed (e.g. in a new folder ~/.local/agvm). Note that the name of the executable is *hlVX*.
 
 ## Installation remarks
 
@@ -90,9 +90,9 @@ export LD_LIBRARY_PATH=$HOME/.local/hiperlifelib/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$HOME/.local/hiperlife:$LD_LIBRARY_PATH
 ```
 
-Same for the path to the agvm_domes executable
+Same for the path to the agvm executable
 ```bash
-export PATH="$HOME/.local/agvm_domes/:$PATH"
+export PATH="$HOME/.local/agvm/:$PATH"
 
 ```
 

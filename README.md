@@ -17,16 +17,16 @@ See [INSTALL.md](INSTALL.md) for detailed installation instructions.
 
 The folder is organized as follows :
 ```bash
-.                        # <--- top-level (or root) directory of the project (called agvm_domes)   
+.                        # <--- top-level (or root) directory of the project (called agvm)   
 ├── build                # <--- Temporary build system files (CMake, object files, etc.)
 ├── simulation           # <--- Folder containing the meshes to run a simulation
 |   ├── results          # <--- Folder where to run the simulation
 |   └── mesh             # <--- Folder containing the mesh files
 ├── src                  # <--- Folder containing the source code (implementation files)
 |   ├── CMakeLists.txt   # <--- Application configuration file.
-|   ├── AuxVXDomes.cpp   # <--- Implementation of helper functions
-|   ├── AuxVXDomes.h     # <--- Header file declaring helper functions
-|   └── VXDomes.cpp      # <--- Main, entry point of the program
+|   ├── AuxVX.cpp   # <--- Implementation of helper functions
+|   ├── AuxVX.h     # <--- Header file declaring helper functions
+|   └── VX.cpp      # <--- Main, entry point of the program
 ├── post-processing      # <--- Contains the post-processing file used in Paraview (.pvsm)
 ├── CMakeLists.txt       # <--- Top-level configuration file.
 ├── userConfig.cmake     # <--- User's configuration file.
@@ -50,14 +50,14 @@ The folder *simulation/mesh/* contains mesh files called vertexmesh_X.txt where 
 To run a simulation :
 
 ```bash
-mpirun -n 8 hlVXDomes VMconfig.cfg > output.out &
+mpirun -n 8 hlVX VMconfig.cfg > output.out &
 ```
 
-where *8* corresponds to the number of processors used, *hlVXDomes* the name of the executable, *> out8procs.out* to store the simulation output in a file.
+where *8* corresponds to the number of processors used, *hlVX* the name of the executable, *> out8procs.out* to store the simulation output in a file.
 
 IMPORTANT: if the path the executable is not explicitely specified, then it should be specified in ~/.bashrc, .e.g., by adding the following line to the file
 ```bash
-export PATH="$HOME/.local/agvm_domes/:$PATH"
+export PATH="$HOME/.local/agvm/:$PATH"
 ```
 and the file needs to be sourced by
 ```bash
@@ -69,7 +69,7 @@ See [INSTALL.md](INSTALL.md) for more details.
 ## Data visualiwation and post-processing
 
 At each timestep X, the code outputs a solutionX.vtm file and one solutionX.Y.vtu file per processor Y used which stores the values for the different degrees of freedom. For example, with 4 processors, step 89 outputs solution89.vtm and solution89.0.vtu, solution89.1.vtu, solution89.2.vtu, solution89.3.vtu, solution89.4.vtu. To visualize the results we use [Paraview](https://www.paraview.org/) which is an open source post-processing visualization engine freely available for download. 
-We used version 5.11.2 available [here](https://www.paraview.org/download/) and we provide a [state file](post-processing/state.pvsm) which loads the solution*.vtm files and provides a cross section view of the the dome at different timesteps. 
+We used version 5.11.2 available [here](https://www.paraview.org/download/) and we provide a [state file](post-processing/state.pvsm) which loads the solution*.vtm files and provides a cross section view of the tissue at different timesteps. 
 
 To do so :
 
@@ -78,28 +78,6 @@ To do so :
 3) Choose state.pvsm in the *post-processing* folder
 4) In the dropdown menu, select *Choose File Names*
 5) At the bottom of the Load State Options window (XMLMultiBlockDataReader), select the *solution..vtm* files to add the collection of solution files.
-
-## Expected outputs
-
-Here we show snapshots of the results for an inflated and deflating dome. We simulate spherical dome inflation and deflation in a monolayer attached to a substrate by fixing nodes outside a circular basal footprint. Once the dome deflates, nodes in renewed contact with the substrate are fixed.
-
-We first start with a flat monolayer
-
-![plot](post-processing/initial_state.png)
-
-We then inflate and hold the dome over a large periode of time allowing sufficient time for the active gel dynamics to relax. 
-
-![plot](post-processing/inflated_dome.png)
-
-Finaly, we rapidely deflate the dome, causing the tissue to buckle and to form wrinkling patterns upon contact with the substrate. 
-
-![plot](post-processing/deflating_dome_1.png)
-![plot](post-processing/deflating_dome_2.png)
-![plot](post-processing/deflating_dome_3.png)
-
-Time shown in the snapshots are in turnover timescale. 
-
-Note that the snapshots shown correspond to approximately 0h, 1h35,  2h, 3h15 and 10h of simulation time, respectively, using 8 cores on a Dell Intel® Xeon(R) Silver 4208 CPU @ 2.10GHz × 32. During the deflation phase, the time-step decreases for numerical convergence as the dome buckles and cells come in contact. 
 
 ## Cite 
 
