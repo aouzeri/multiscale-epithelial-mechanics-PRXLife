@@ -18,22 +18,24 @@ See [INSTALL.md](INSTALL.md) for detailed installation instructions.
 The folder is organized as follows :
 ```bash
 .                        # <--- top-level (or root) directory of the project (called agvm)   
-├── build                # <--- Temporary build system files (CMake, object files, etc.)
+├── build                # <--- Temporary build system files (CMake, object files, etc.) : created at installation
+├── ExperimentalResults  # <--- Folder containing the experimental data
+├── post-processing      # <--- Contains the post-processing file used in Paraview (.pvsm)
 ├── simulation           # <--- Folder containing the meshes to run a simulation
 |   ├── results          # <--- Folder where to run the simulation
 |   └── mesh             # <--- Folder containing the mesh files
 ├── src                  # <--- Folder containing the source code (implementation files)
 |   ├── CMakeLists.txt   # <--- Application configuration file.
-|   ├── AuxVX.cpp   # <--- Implementation of helper functions
-|   ├── AuxVX.h     # <--- Header file declaring helper functions
-|   └── VX.cpp      # <--- Main, entry point of the program
-├── post-processing      # <--- Contains the post-processing file used in Paraview (.pvsm)
-├── CMakeLists.txt       # <--- Top-level configuration file.
-├── userConfig.cmake     # <--- User's configuration file.
-├── README.md            # <--- Project overview and usage instruction
-├── INSTALL.md           # <--- Instructions on how to install and build the project 
+|   ├── AuxVX.cpp        # <--- Implementation of helper functions
+|   ├── AuxVX.h          # <--- Header file declaring helper functions
+|   └── VX.cpp           # <--- Main, entry point of the program
 ├── AUTHORS.md           # <--- List of project authors and contributors  
-└── .gitignore           # <--- Contains files to be ignored by git 
+├── CMakeLists.txt       # <--- Top-level configuration file.
+├── INSTALL.md           # <--- Instructions on how to install and build the project 
+├── .gitignore           # <--- Contains files to be ignored by git 
+├── LICENSE              # <--- Software license
+├── README.md            # <--- Project overview and usage instruction
+└── userConfig.cmake     # <--- User's configuration file
 ```
 
 ## Running a simulation
@@ -66,7 +68,7 @@ source ~/.bashrc
 See [INSTALL.md](INSTALL.md) for more details.
 
 
-## Data visualiwation and post-processing
+## Data visualisation and post-processing
 
 At each timestep X, the code outputs a solutionX.vtm file and one solutionX.Y.vtu file per processor Y used which stores the values for the different degrees of freedom. For example, with 4 processors, step 89 outputs solution89.vtm and solution89.0.vtu, solution89.1.vtu, solution89.2.vtu, solution89.3.vtu, solution89.4.vtu. To visualize the results we use [Paraview](https://www.paraview.org/) which is an open source post-processing visualization engine freely available for download. 
 We used version 5.11.2 available [here](https://www.paraview.org/download/) and we provide a [state file](post-processing/state.pvsm) which loads the solution*.vtm files and provides a cross section view of the tissue at different timesteps. 
