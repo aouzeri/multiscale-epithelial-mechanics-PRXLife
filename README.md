@@ -19,7 +19,7 @@ The folder is organized as follows :
 ```bash
 .                        # <--- top-level (or root) directory of the project (called agvm)   
 ├── build                # <--- Temporary build system files (CMake, object files, etc.) : created at installation
-├── ExperimentalResults  # <--- Folder containing the experimental data
+├── ExperimentalResults  # <--- Folder containing the dome experimental data
 ├── post-processing      # <--- Contains the post-processing file used in Paraview (.pvsm)
 ├── simulation           # <--- Folder containing the meshes to run a simulation
 |   ├── results          # <--- Folder where to run the simulation

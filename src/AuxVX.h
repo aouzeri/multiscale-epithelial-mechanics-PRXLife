@@ -45,7 +45,7 @@ class faceMesh
         int nPts     = {};
         int nElem    = {};
         int DOF      = 3;
-        int gDOF     = 6; // G values, pressure, density, luminal pressure
+        int gDOF     = 5; // G values, pressure, density
         int gAux     = 6;
 
         std::vector<int>    nBorFaces     = {};
@@ -89,10 +89,7 @@ class tissueMesh: public hiperlife::DistributedData
 		void loadMesh( std::string fileName);
         void readNeighbouringCells(const string fileName);
         void readfaceIDsinCells(const string fileName);
-        void calculateDistanceBetweenCellCentroids(Teuchos::RCP<hiperlife::ParamStructure> paramStr,  Teuchos::RCP<hiperlife::HiPerProblem> hiperProbl);
         void setNumberCells(const int numberCells);
-	    void setNPointsInCell(Teuchos::RCP<hiperlife::ParamStructure> paramStr);
-        void updateFacesCentroids(Teuchos::RCP<hiperlife::ParamStructure> paramStr);
 
     faceMesh* operator [] (int i)
         {

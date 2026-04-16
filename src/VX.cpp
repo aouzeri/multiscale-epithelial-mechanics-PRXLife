@@ -62,10 +62,7 @@ int main(int argc, char *argv[])
     double activB;
     double activL;
     double eta_f;
-    double contact_force_coefficient; // Contact force coefficient
-    double decrease_lateral_coefficient; // Multiply by 1.0 by default // 0.1 to decrease lateral elasticity moduli to improve numerical convergence when inflation is fast
-
-    // Buckling simulation parameters
+    double basaltractions;
     double tcycle;
     double tequi;
     double inflation_begin;
@@ -76,6 +73,13 @@ int main(int argc, char *argv[])
     double deltat_max;
     double deflation_mag;
     double inflation_mag;
+    bool applybasalTractionFlag;
+
+    // Re-stiffening parameters
+    double memb_thresh_high;
+    double memb_thresh_low;
+    double memb_lam_high;
+    double memb_lam_low;
 
     int    MAXITER;
     int    nIterChange;
@@ -83,10 +87,6 @@ int main(int argc, char *argv[])
     double SOLTOL;
     double RESTOL;
     int    nResSteps;
-
-    // dome volume increase dynamics
-    double domeInflrate;
-    double domeDeflrate;
 
     // Model parameters and solver options are read from a configuration file
     if (argc > 1)
@@ -111,10 +111,16 @@ int main(int argc, char *argv[])
         config.readInto(activB, "activB");
         config.readInto(activL, "activL");
         config.readInto(eta_f, "eta_f");
-        config.readInto(contact_force_coefficient, "contact_force_coefficient");
-        config.readInto(decrease_lateral_coefficient, "decrease_lateral_coefficient");
+        config.readInto(basaltractions, "basaltractions");
+        config.readInto(applybasalTractionFlag, "applybasalTractionFlag");
 
-        // Buckling simulation parameters
+        // Re-stiffening parameters
+        config.readInto(memb_thresh_high, "memb_thresh_high");
+        config.readInto(memb_thresh_low, "memb_thresh_low");
+        config.readInto(memb_lam_high, "memb_lam_high");
+        config.readInto(memb_lam_low, "memb_lam_low");
+
+        // Simulation parameters
         config.readInto(tequi, "tequi");
         config.readInto(tcycle, "tcycle");
         config.readInto(inflation_begin, "inflation_begin");
@@ -132,10 +138,6 @@ int main(int argc, char *argv[])
         config.readInto(RESTOL, "RESTOL");
         config.readInto(nResSteps, "nResSteps");
         config.readInto(nIterChange, "nIterChange");
-
-        // Dome inflation parameters
-        config.readInto(domeInflrate, "domeInflrate");
-        config.readInto(domeDeflrate, "domeDeflrate");
 
     }
     else
@@ -160,14 +162,7 @@ int main(int argc, char *argv[])
     if( myRank == 0)
 	cout << "Loading mesh..." << endl;
     tissuemesh.loadMesh("vertexmesh");
-    tissuemesh.setNumberCells(nCells);
-
-    if( myRank == 0)
-	cout << "Reading neighbouring cells and facesIDs in cells..." << endl;
-    tissuemesh.readNeighbouringCells("neighbourcells.txt");
-    tissuemesh.readfaceIDsinCells("faceIDsinCell.txt");
-
-
+  
     if( myRank == 0)
 	cout << "Updating tissue mesh..." << endl;
     tissuemesh.Update();
@@ -182,7 +177,7 @@ int main(int argc, char *argv[])
 
     // Assign parameters in a user structure
     SmartPtr<ParamStructure> paramStr = Create<ParamStructure>();
-    paramStr->dparam.resize(14);
+    paramStr->dparam.resize(16);
 
     paramStr->dparam[0]  = deltat;
     paramStr->dparam[1]  = kp;
@@ -194,24 +189,13 @@ int main(int argc, char *argv[])
     paramStr->dparam[7]  = activB; 
     paramStr->dparam[8] = activL; 
     paramStr->dparam[9] = eta_f;    
-    paramStr->dparam[10] = 0.0; // Updated in time loop 
+    paramStr->dparam[10] = basaltractions; // Updated in time loop 
     paramStr->dparam[11] = ConcInit;
-    paramStr->dparam[12] = decrease_lateral_coefficient; 
-    paramStr->dparam[13] = contact_force_coefficient; 
+    paramStr->dparam[12] = memb_thresh_high;
+    paramStr->dparam[13] = memb_lam_high;
+    paramStr->dparam[14] = memb_lam_low;
+    paramStr->dparam[15] = memb_thresh_low;
 
-    // Setting all paramStr vectors
-    paramStr->bparam.resize(tissuemesh.nFaces,false); //used for contact potential
-    paramStr->i_aux.resize(tissuemesh.nFaces,0); // storing number of points in each cell for each face
-    tissuemesh.setNPointsInCell(paramStr);
-
-    paramStr->x_aux.resize(tissuemesh.nFaces,0.0); // x-coordinate difference with contacting cell barycenter
-    paramStr->y_aux.resize(tissuemesh.nFaces,0.0); // y-coordinate difference with contacting cell barycenter
-    paramStr->z_aux.resize(tissuemesh.nFaces,0.0); // z-coordinate difference with contacting cell barycenter
-
-    
-    //Set-up for faces touching the substrate
-    vector <int > newlocMeshIDsToFix(tissuemesh.nItem(), 0);
-    paramStr->j_aux.resize(tissuemesh.nFaces, 0);
 
     // Setting simualtion parameters
     int    nSave    = 0;
@@ -320,84 +304,12 @@ int main(int argc, char *argv[])
         
         //////////////////////////////////////// Ad hoc modification ////////////////////////////////////////
 
-        
-	// (Re)-setting all faces to false
-        replace(paramStr->bparam.begin(), paramStr->bparam.end(), true, false); 
-        fill(begin(paramStr->x_aux), begin( paramStr->x_aux) + tissuemesh.nFaces, 0.0);
-        fill(begin(paramStr->y_aux), begin( paramStr->y_aux) + tissuemesh.nFaces, 0.0);
-        fill(begin(paramStr->z_aux), begin( paramStr->z_aux) + tissuemesh.nFaces, 0.0);
-
-        // updating centroid distances
-        tissuemesh.updateFacesCentroids(paramStr);
-        tissuemesh.calculateDistanceBetweenCellCentroids(paramStr, hiperProbl);
-		
-
-        // Start dome inflation after tequi
-        if (simTime + deltat > tequi + inflation_begin && simTime + deltat < tequi + inflation_begin + inflation_duration )
-        {
-            paramStr->dparam[10] = domeInflrate;
-
-        }
-        else if(simTime + deltat  > tequi + deflation_begin)        {
-            if(simTime + deltat < tequi + deflation_begin + deflation_duration)
-                paramStr->dparam[10] = domeDeflrate;
-            else
-                paramStr->dparam[10] = 0.0;
-
-            if(resetDeltat)
-            {
-                resetDeltat = false;
-                deltat = 0.05; // resetting deltat to capture fast deflation
-            }    
-        }
+        // Applying tractions on basal boundary
+        if (applybasalTractionFlag == true)
+            paramStr->dparam[10] = basaltractions*loadVal;
         else
-        {
-           paramStr->dparam[10] = 0.0;
-        }
-		
+            paramStr->dparam[10] = 0.0;
     
-
-    // Fixing faces touching substrate during deflation
-      if (simTime+ 2*deltat > tequi +  deflation_begin)
-        {
-
-            for (int mecID = 0; mecID < hiperProbl->_dhands.size(); mecID++)
-            {
-                if (mecID % 2 == 0) // get  only node positions (first DofHandler)
-                {
-                    auto mec = hiperProbl->_dhands[mecID];
-                    int meshID = mecID/2;
-                    int meshIDloc = tissuemesh.locIdx(meshID);
-		            bool dontStick = false; // don't stick a face that shares a fixed node
-                    if (tissuemesh.isItemInPart(meshID) && tissuemesh.meshes[meshIDloc].faceType == 1)
-                    {
-                        int nNodesToConstrain = 0;
-		
-
-                        for (int j = 0; j < mec->mesh->loc_nPts(); j++)
-                        {
-                            double zPosOfNode = tissuemesh.fields[mecID]->nodeDOFs->getValue(2, j, IndexType::Local);
-                           
-                            // Directly fixing each node (Méthode 1)
-                            if (zPosOfNode < -0.05)
-                            {
-                                for ( int n = 0; n < tissuemesh.meshes[meshIDloc].nDim; n++ )
-				                    tissuemesh.fields[mecID]->setConstraint(n, j, IndexType::Local, 0.0); // n = DOF, j = local node index (of that face/mesh i)
-                                
-                                newlocMeshIDsToFix[meshID] = 1;
-                            }
-                                
-                        }
-                    }
-
-                }
-            }
-
-        }
-
-        // Sharing the information about meshes that touched the substrate with all partitions
-        MPI_Allreduce(newlocMeshIDsToFix.data(), paramStr->j_aux.data(), tissuemesh.nItem(), MPI_INT, MPI_MAX, MPI_COMM_WORLD);    
-
 		//**************************************************************************************************************//
 
         // Step time inside the cycle
