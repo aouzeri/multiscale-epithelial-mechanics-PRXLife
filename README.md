@@ -89,5 +89,7 @@ You can acknowledge this package in any publication that relies on it using refe
 
 [1] Santos-Oliván, D., Vilanova, G., & Torres-Sánchez, A. (2025). hiperlife. Zenodo. https://doi.org/10.5281/zenodo.14927572
 
-[2] Adam Ouzeri. Theory and computation of multiscale epithelial mechanics : from active gels to vertex models. Doctoral thesis. doi: https://doi.org/10.5821/dissertation-2117-402162
+[2] Ouzeri A., Kale S., Chahare N., Torres-Sanchez A., Santos-Olivan D., Trepat X., Arroyo M. (2026), PRX Life, https://doi.org/10.1103/4mx5-t5hx
+
+[3] Adam Ouzeri. Theory and computation of multiscale epithelial mechanics : from active gels to vertex models. Doctoral thesis. doi: https://doi.org/10.5821/dissertation-2117-402162
 
