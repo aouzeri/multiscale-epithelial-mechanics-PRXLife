@@ -4,7 +4,7 @@ This document explains how to install and set up the computational model on your
 
 
 ## Installing hiperlife
-Prior to following the instructions for installing the vertex model application, it is necessary to download the hiperlife library [[1](#References)] at https://doi.org/10.5281/zenodo.14927572 and follow the INSTALL.md instructions there in. Note that installing the hiperlife library and it's dependencies can take over an hour.
+Prior to following the instructions for installing the vertex model application, it is necessary to download the hiperlife library [[1](#References)] [here](https://doi.org/10.5281/zenodo.14927572) (or [here](https://gitlab.com/hiperlife/hiperlife) for developing version) and follow the INSTALL.md instructions there in. Note that installing the hiperlife library and it's dependencies can take over an hour.
 
 For completeness, we summarize the necessary steps here.
 
