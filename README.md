@@ -1,14 +1,14 @@
 # Computational model bridging active gels to vertex models
 
 
-The present work is a [hiperlife](https://doi.org/10.5281/zenodo.14927572) [[1](#References)] based project for simulating epithelial dynamics under stretch. In this model [[2](#References)], the mechanical behavior of each cellular surface is described with an active gel model of the actomyosin cortex capturing its viscoelasticity, active contractility and turnover. Cell surfaces are triangulated resulting in a 3D vertex model with curved cellular surfaces and the model is solved on each of these surfaces using finite elements. To limit cell interpenetration, we included a repulsive potential between cells. Additionally, surfaces enclose fixed cellular volumes. 
+This work presents a multiscale modeling framework for epithelial dynamics under stretch. The tissuecale mechanical response emerges directly from the collective behavior of each cellular surface, each described with an active gel model of the actomyosin cortex capturing its viscoelasticity, active contractility and turnover [[1](#References)]. Cell surfaces are triangulated resulting in a 3D vertex-like model with curved cellular surfaces of arbitrary resolution and the model is solved on each of these surfaces using a parallel finite element library [[2](#References)]. Additionally, surfaces enclose fixed cellular volumes. 
 
 ## License 
 Distributed under the GNU GENERAL PUBLIC LICENSE. See [LICENSE](LICENSE) for details.
 
 ## Hiperlife [[1](#References)]
 
-We use a parallel finite element library called [hiperlife](https://doi.org/10.5281/zenodo.14927572) (High Performance Library for Finite Elements) [[1](#References)], which serves as the core numerical engine for the simulations presented in this study. The library is openly distributed to the community and aims at providing a computational framework to address problems of cell and tissue mechanobiology for a wide range of cases and users, with special focus on curved surfaces. The library is written in C++, uses the Message Passing Interface (MPI) paradigm for parallelism, and is built on top of several packages of the [Trilinos Project](https://trilinos.github.io/). The installation of the hiperlife libraries can be carried out by following the README.md and INSTALL.md files provided at https://doi.org/10.5281/zenodo.14927572. 
+We use a parallel finite element library called [hiperlife](https://doi.org/10.5281/zenodo.14927572) (High Performance Library for Finite Elements) [[2](#References)], which serves as the core numerical engine for the simulations presented in this study. The library is openly distributed to the community and aims at providing a computational framework to address problems of cell and tissue mechanobiology for a wide range of cases and users, with special focus on curved surfaces. The library is written in C++, uses the Message Passing Interface (MPI) paradigm for parallelism, and is built on top of several packages of the [Trilinos Project](https://trilinos.github.io/). The installation of the hiperlife libraries can be carried out by following the README.md and INSTALL.md files provided at https://doi.org/10.5281/zenodo.14927572. 
 
 ## Installation
 See [INSTALL.md](INSTALL.md) for detailed installation instructions.
@@ -20,7 +20,7 @@ The folder is organized as follows :
 .                        # <--- top-level (or root) directory of the project (called agvm)   
 ├── build                # <--- Temporary build system files (CMake, object files, etc.) : created at installation
 ├── ExperimentalResults  # <--- Folder containing the dome experimental data
-├── post-processing      # <--- Contains the post-processing file used in Paraview (.pvsm)
+├── post-processing      # <--- Folder containing the post-processing file used in Paraview (.pvsm)
 ├── simulation           # <--- Folder containing the meshes to run a simulation
 |   ├── results          # <--- Folder where to run the simulation
 |   └── mesh             # <--- Folder containing the mesh files
@@ -87,9 +87,10 @@ You can acknowledge this package in any publication that relies on it using refe
 
 ## References
 
-[1] Santos-Oliván, D., Vilanova, G., & Torres-Sánchez, A. (2025). hiperlife. Zenodo. https://doi.org/10.5281/zenodo.14927572
+[1] Ouzeri A., Kale S., Chahare N., Torres-Sanchez A., Santos-Olivan D., Trepat X., Arroyo M. (2026), PRX Life, https://doi.org/10.1103/4mx5-t5hx
 
-[2] Ouzeri A., Kale S., Chahare N., Torres-Sanchez A., Santos-Olivan D., Trepat X., Arroyo M. (2026), PRX Life, https://doi.org/10.1103/4mx5-t5hx
+[2] Santos-Oliván, D., Vilanova, G., & Torres-Sánchez, A. (2025). hiperlife. Zenodo. https://doi.org/10.5281/zenodo.14927572
+
 
 [3] Adam Ouzeri. Theory and computation of multiscale epithelial mechanics : from active gels to vertex models. Doctoral thesis. doi: https://doi.org/10.5821/dissertation-2117-402162
 
