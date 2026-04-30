@@ -1,4 +1,4 @@
-# Active gel vertex model : computational model bridging active gels to vertex models
+# <ins>active gel Vertex Model</ins> : computational model bridging active gels to vertex models
 
 
 This work presents a multiscale modeling framework for epithelial dynamics under stretch. The tissue-scale mechanical response emerges directly from the collective behavior of each cellular surface, each described with an active gel model of the actomyosin cortex capturing its viscoelasticity, active contractility and turnover [[1](#References)]. Cell surfaces are triangulated resulting in a 3D vertex-like model with curved cellular surfaces of arbitrary resolution and the model is solved on each of these surfaces using a parallel finite element library [[2](#References)]. Additionally, surfaces enclose fixed cellular volumes. 
