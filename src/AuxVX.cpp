@@ -709,7 +709,6 @@ void LS_K (hiperlife::FillStructure& fillStr)
     double memb_lam_high    = dparam[14] * deltat;
     double memb_lam_low     = dparam[15] * deltat;
 
-
     double activ{};
     int    facetag   = 0;
 
@@ -1130,7 +1129,7 @@ void LS_K (hiperlife::FillStructure& fillStr)
                     }
             }
             // lower threshold
-                        if (J/JR < memb_thresh_low)
+            if (J/JR < memb_thresh_low)
             {
                     for (int n = 0; n < nDim; n++) {
                         for (int m = 0; m < nDim; m++) {

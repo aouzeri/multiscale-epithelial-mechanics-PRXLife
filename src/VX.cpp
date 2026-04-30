@@ -192,9 +192,9 @@ int main(int argc, char *argv[])
     paramStr->dparam[10] = basaltractions; // Updated in time loop 
     paramStr->dparam[11] = ConcInit;
     paramStr->dparam[12] = memb_thresh_high;
-    paramStr->dparam[13] = memb_lam_high;
-    paramStr->dparam[14] = memb_lam_low;
-    paramStr->dparam[15] = memb_thresh_low;
+    paramStr->dparam[13] = memb_thresh_low;
+    paramStr->dparam[14] = memb_lam_high;
+    paramStr->dparam[15] = memb_lam_low;
 
 
     // Setting simualtion parameters
@@ -321,14 +321,12 @@ int main(int argc, char *argv[])
         double incr_end   = Getloadstep(tSimucpdeltatc,inflation_begin,inflation_end,deflation_begin,deflation_end,deflation_mag,inflation_mag);
         loadIncr = (incr_end - incr_begin);
 
-
         // Update previous timestep solution
         for (int i = 0; i < tissuemesh.nItem(); i++)
         {
             tissuemesh.fields[2 * i + 0]->nodeDOFs0->setValue(tissuemesh.fields[2 * i + 0]->nodeDOFs);
             tissuemesh.fields[2 * i + 1]->nodeDOFs0->setValue(tissuemesh.fields[2 * i + 1]->nodeDOFs);
-        }
-     
+        }     
 
         hiperProbl->UpdateGhosts();
         hiperProbl->FillLinearSystem();
