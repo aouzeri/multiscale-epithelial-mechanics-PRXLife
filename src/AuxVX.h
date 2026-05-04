@@ -119,7 +119,7 @@ class tissueMesh: public hiperlife::DistributedData
 };
 
 void LS_K (hiperlife::FillStructure& fillStr);
-double Getloadstep(double t, double inflation_begin, double inflation_end, double deflation_begin, double deflation_end, double push_mag, double pull_mag);
+double Getloadstep(double t, double pull_begin, double pull_end, double push_begin, double push_end, int loadcase, double push_mag, double pull_mag);
 inline std::string first_numberstring(std::string const & str)
 {
 

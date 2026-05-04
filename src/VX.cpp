@@ -63,30 +63,37 @@ int main(int argc, char *argv[])
     double activL;
     double eta_f;
     double basaltractions;
+
+    int    loadcase; 
     double tcycle;
     double tequi;
-    double inflation_begin;
-    double inflation_duration;
-    double deflation_duration;
-    double deflation_begin;
     double totalTime;
     double deltat_max;
-    double deflation_mag;
-    double inflation_mag;
+    double pull_begin;
+    double pull_stretchduration;
+    double push_stretchduration;
+    double push_begin;
+    double push_mag;
+    double pull_mag;
     bool applybasalTractionFlag;
+    bool perturbseedbucklingflag;
+    bool periodicboxflag;
+
+    // Applied deformation
+    double DelF00;
+    double DelF01;
+    double DelF10;
+    double DelF11;
 
     // Re-stiffening parameters
     double memb_thresh_high;
     double memb_thresh_low;
     double memb_lam_high;
     double memb_lam_low;
-
     int    MAXITER;
     int    nIterChange;
-
     double SOLTOL;
     double RESTOL;
-    int    nResSteps;
 
     // Model parameters and solver options are read from a configuration file
     if (argc > 1)
@@ -113,6 +120,14 @@ int main(int argc, char *argv[])
         config.readInto(eta_f, "eta_f");
         config.readInto(basaltractions, "basaltractions");
         config.readInto(applybasalTractionFlag, "applybasalTractionFlag");
+        config.readInto(periodicboxflag,         "periodicboxflag");
+        config.readInto(perturbseedbucklingflag, "perturbseedbucklingflag");
+
+        // Applied deformation
+        config.readInto(DelF00, "DelF00");
+        config.readInto(DelF01, "DelF01");
+        config.readInto(DelF10, "DelF10");
+        config.readInto(DelF11, "DelF11");
 
         // Re-stiffening parameters
         config.readInto(memb_thresh_high, "memb_thresh_high");
@@ -121,22 +136,22 @@ int main(int argc, char *argv[])
         config.readInto(memb_lam_low, "memb_lam_low");
 
         // Simulation parameters
+        config.readInto(loadcase, "loadcase");
         config.readInto(tequi, "tequi");
         config.readInto(tcycle, "tcycle");
-        config.readInto(inflation_begin, "inflation_begin");
-        config.readInto(inflation_duration, "inflation_duration");
-        config.readInto(deflation_duration, "deflation_duration");
-        config.readInto(deflation_begin, "deflation_begin");
         config.readInto(totalTime, "totalTime");
         config.readInto(deltat_max, "deltat_max");
-        config.readInto(deflation_mag, "deflation_mag");
-        config.readInto(inflation_mag, "inflation_mag");
+        config.readInto(pull_begin, "pull_begin");
+        config.readInto(pull_stretchduration, "pull_stretchduration");
+        config.readInto(push_stretchduration, "push_stretchduration");
+        config.readInto(push_begin, "push_begin");
+        config.readInto(push_mag, "push_mag");
+        config.readInto(pull_mag, "pull_mag");
 
         // Solver parameters
         config.readInto(MAXITER, "MAXITER");
         config.readInto(SOLTOL, "SOLTOL");
         config.readInto(RESTOL, "RESTOL");
-        config.readInto(nResSteps, "nResSteps");
         config.readInto(nIterChange, "nIterChange");
 
     }
@@ -236,21 +251,13 @@ int main(int argc, char *argv[])
 
     //Set parameter
     double stepFactor = 0.90;
-    bool startConstrainingMesh = false;
+    double pull_end        = pull_begin + pull_stretchduration;
+    double push_end        = push_begin + push_stretchduration;
 
-    //double parameters for NR
-    std::vector<double> dparamNR;
-    dparamNR.resize(4);
-    dparamNR[0] = SOLTOL;
-    dparamNR[1] = RESTOL;
-
-    //Integer parameters for NR
-    std::vector<int> iparamNR;
-    iparamNR.resize(1);
-    iparamNR[0] = MAXITER;
-
-    double inflation_end        = inflation_begin + inflation_duration;
-    double deflation_end        = deflation_begin + deflation_duration;
+    // Imposed total deformation gradient on the boundary
+    vector<double> Id     = {1.0, 0.0, 0.0, 1.0}; // Identity
+    vector<double> Fapp   = {0.0, 0.0, 0.0, 0.0}; // Stores the total imposed deformation on the tissue
+    vector<double> Fincr  = {DelF00, DelF01, DelF10, DelF11}; // total increment in F to be imposed
 
     if (tissuemesh.myRank() == 0 )
           cout << "Initial fill of hiperproblem..."<< endl;
@@ -317,8 +324,8 @@ int main(int argc, char *argv[])
         tSimucpdeltatc = fmod(simTime + deltat - tequi, tcycle);
 
         // Get the load increment to be imposed
-        double incr_begin = Getloadstep(tSimuc,inflation_begin,inflation_end,deflation_begin,deflation_end,deflation_mag,inflation_mag);
-        double incr_end   = Getloadstep(tSimucpdeltatc,inflation_begin,inflation_end,deflation_begin,deflation_end,deflation_mag,inflation_mag);
+        double incr_begin = Getloadstep(tSimuc,pull_begin,pull_end,push_begin,push_end,loadcase,push_mag,pull_mag);
+        double incr_end   = Getloadstep(tSimucpdeltatc,pull_begin,pull_end,push_begin,push_end,loadcase,push_mag,pull_mag);
         loadIncr = (incr_end - incr_begin);
 
         // Update previous timestep solution
@@ -326,7 +333,172 @@ int main(int argc, char *argv[])
         {
             tissuemesh.fields[2 * i + 0]->nodeDOFs0->setValue(tissuemesh.fields[2 * i + 0]->nodeDOFs);
             tissuemesh.fields[2 * i + 1]->nodeDOFs0->setValue(tissuemesh.fields[2 * i + 1]->nodeDOFs);
-        }     
+        }
+        
+        // ---------------------------------------------------------------------------
+        // ----------- Incrementing boundary conditions on dirichlet nodes -----------
+        // ---------------------------------------------------------------------------
+
+	if(tissuemesh.myRank() == 0)
+		cout << "Applying dirichlet BC..." << endl;
+
+        // Store the master increments in the incrDOFs
+        auto incrDOFs = hiperProbl->linProbl->GetLHS();
+	incrDOFs->PutScalar(0.0);
+        int  hpIdx    = 0;
+
+        for (int dofshandID = 0; dofshandID < hiperProbl->_dhands.size(); dofshandID++) // going through all dofHandlers (DOF and gDOF)
+        {
+            auto dofshand = hiperProbl->_dhands[dofshandID];
+
+            for (int j = 0; j < dofshand->mesh->loc_nPts(); j++) // getting the number of points in that mechanics (which is equivalent the number of point in the mesh)
+            {
+                for (int dof = 0; dof < dofshand->numDOFs(); dof++) // getting to the degree of freedom of that dofHandlerS (3 for DOF and more for gDOF)
+                {
+                    if (dofshandID % 2 == 0)
+                    {
+                        //~ cout << "mecID : " << mecID << ", j : " << j << ", dof " << dof << endl;
+                        int meshID = dofshandID/2;
+                        int meshIDloc = tissuemesh.locIdx(meshID);
+                        int loc_nPts  = tissuemesh.meshes[meshIDloc].nPts;
+
+                        if (tissuemesh.isItemInPart(meshID))
+                        {
+                            // Get X
+                            vector<double> X = {0.0, 0.0, 0.0};
+                            X[0] = tissuemesh.fields[dofshandID]->mesh->nodeCoord(j, 0, IndexType::Global);
+                            X[1] = tissuemesh.fields[dofshandID]->mesh->nodeCoord(j, 1, IndexType::Global);
+                            X[2] = tissuemesh.fields[dofshandID]->mesh->nodeCoord(j, 2, IndexType::Global);
+
+                            // get increment value
+                            vector<double> x_incr = {0.0, 0.0, 0.0};
+                            x_incr[0] = loadIncr * (Fincr[0] * X[0] + Fincr[1] * X[1]);
+                            x_incr[1] = loadIncr * (Fincr[2] * X[0] + Fincr[3] * X[1]);
+                            x_incr[2] = 0.0;
+
+                            // Apply the affine deformation if the node is flagged as dirichlet
+                            if (tissuemesh.meshes[meshIDloc].cn_nodes[loc_nPts * dof + j] > 0)
+                            {
+                                (*incrDOFs)[0][hpIdx] = x_incr[dof];
+                            }
+                            else
+                            {
+                                (*incrDOFs)[0][hpIdx] = 0.0;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        int meshID = dofshandID/2;
+                        if (tissuemesh.isItemInPart(meshID))
+                            (*incrDOFs)[0][hpIdx] = 0.0;
+                    }
+                    hpIdx++;
+                }
+            }
+        }
+
+        // Update nodeDOFs of slaves nodes following the linear constraints involving dirichlet masters
+        hiperProbl->linProbl->SetLHS(incrDOFs);
+        hiperProbl->AddSolutionToDOFs(1.0);
+        
+        // ---------------------------------------------------------------------------
+        // --------- Incrementing boundary conditions on periodic simulation ---------
+        // ---------------------------------------------------------------------------
+
+        // Apply affine deformation on all nodes resulting in increase in the box size
+        if (periodicboxflag == 1)
+        {
+            if(tissuemesh.myRank() == 0)
+                cout << "Applying periodic BC..." << endl;
+            
+                if (tissuemesh.myRank() == 0)
+                cout << "**** NOTE: pulling periodic box with load increment: " << loadIncr << endl;
+
+            for (int i = 0; i < tissuemesh.nItem(); i++)
+            {
+                // Increment boundary conditions
+                if (tissuemesh.isItemInPart(i))
+                {
+                    int locI = tissuemesh.locIdx(i);
+                    int loc_nPts = tissuemesh.meshes[locI].nPts;
+
+                    for (int j = 0; j < loc_nPts; j++)
+                    {
+                        for (int n = 0; n < 3; n++)
+                        {
+                            vector<double> x = {0.0, 0.0, 0.0};
+                            x[0] = tissuemesh.fields[2 * i]->nodeDOFs->getValue(0, j, IndexType::Global);
+                            x[1] = tissuemesh.fields[2 * i]->nodeDOFs->getValue(1, j, IndexType::Global);
+                            x[2] = tissuemesh.fields[2 * i]->nodeDOFs->getValue(2, j, IndexType::Global);
+
+                            vector<double> X = {0.0, 0.0, 0.0};
+                            X[0] = tissuemesh.fields[2 * i]->mesh->nodeCoord(j, 0, IndexType::Global);
+                            X[1] = tissuemesh.fields[2 * i]->mesh->nodeCoord(j, 1, IndexType::Global);
+                            X[2] = tissuemesh.fields[2 * i]->mesh->nodeCoord(j, 2, IndexType::Global);
+
+                            // Update increments
+                            vector<double> x_incr = {0.0, 0.0, 0.0};
+                            x_incr[0] = loadIncr * (Fincr[0] * X[0] + Fincr[1] * X[1]);
+                            x_incr[1] = loadIncr * (Fincr[2] * X[0] + Fincr[3] * X[1]);
+                            x_incr[2] = 0.0;
+
+                            tissuemesh.fields[2 * i]->nodeDOFs->setValue(n, j, IndexType::Local, x[n] + x_incr[n]);
+                        }
+                    }
+                }
+            }
+        }
+// Perturb the initial seed for unconstrained nodes to access first buckling mode
+int coutSeed = 0;
+if (perturbseedbucklingflag == 1)
+        {
+            if (simTime < 1.0)
+                paramStr->dparam[9] = 0.0001;
+            else
+                paramStr->dparam[9] = eta_f;
+
+
+            for (int i = 0; i < tissuemesh.nItem(); i++)
+            {
+                if (tissuemesh.isItemInPart(i))
+                {
+                    int locI = tissuemesh.locIdx(i);
+                    int loc_nPts = tissuemesh.meshes[locI].nPts;
+
+                    for (int j = 0; j < loc_nPts; j++)
+                    {
+                        for (int n = 0; n < 3; n++)
+                        {
+                            if (tissuemesh.meshes[locI].cn_nodes[loc_nPts * n + j] == 0)
+                            {
+                                vector<double> x = {0.0, 0.0, 0.0};
+                                x[0] = tissuemesh.fields[2 * i]->nodeDOFs->getValue(0, j, IndexType::Global);
+                                x[1] = tissuemesh.fields[2 * i]->nodeDOFs->getValue(1, j, IndexType::Global);
+                                x[2] = tissuemesh.fields[2 * i]->nodeDOFs->getValue(2, j, IndexType::Global);
+
+                                vector<double> X = {0.0, 0.0, 0.0};
+                                X[0] = tissuemesh.fields[2 * i]->mesh->nodeCoord(j, 0, IndexType::Global);
+                                X[1] = tissuemesh.fields[2 * i]->mesh->nodeCoord(j, 1, IndexType::Global);
+                                X[2] = tissuemesh.fields[2 * i]->mesh->nodeCoord(j, 2, IndexType::Global);
+
+                                // Set for 75X10 tissue case
+                                if (n == 2 && loadIncr < 0.0 && loadVal > 0.65 && abs(X[0]) < 30.0)
+                                {
+			
+                        	    coutSeed = 1;
+                                
+				    tissuemesh.fields[2 * i]->nodeDOFs->setValue(n, j, IndexType::Local, x[n] + abs(abs(X[0]) - 30.0) / 100.0);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+	if (coutSeed == 1 && tissuemesh.myRank() == 0)
+             cout << "PERTURBING SEED" << endl;
 
         hiperProbl->UpdateGhosts();
         hiperProbl->FillLinearSystem();
@@ -337,7 +509,8 @@ int main(int argc, char *argv[])
         {
             cout << "Time " << simTime << " of " << totalTime << " with deltat=" << deltat << endl;
             cout << "Starting Newton-Raphson iteration" << endl;
-            cout << "Step number: "<< nSave << endl;
+            cout << "Imposed displacement (Fxx): " << 1 + loadVal*Fincr[0] << endl;
+            cout << "Friction coefficient : " << paramStr->dparam[9] << endl;
         }
 
         // Non-linear solver

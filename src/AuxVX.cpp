@@ -1265,32 +1265,88 @@ void LS_K (hiperlife::FillStructure& fillStr)
 }
 
 
-double Getloadstep(double t, double inflation_begin, double inflation_end,
-                   double deflation_begin, double deflation_end, double deflation_mag, double inflation_mag)
+double Getloadstep(double t, double pull_begin, double pull_end,
+                   double push_begin, double push_end, int loadcase, double push_mag, double pull_mag)
 {
     double incr = 0.0;
+    switch (loadcase)
+    {
+        case 1:
+            // push then pull
+            if (t > push_begin and t < push_end)
+            {
+                incr = (t - push_begin) * -push_mag/(push_end - push_begin);
+            }
+            else if (t >= push_end and t <= pull_begin)
+            {
+                incr = -push_mag;
+            }
+            else if (t > pull_begin and t < pull_end)
+            {
+                incr = -push_mag + (t - pull_begin)* (pull_mag + push_mag)/(pull_end - pull_begin);
+            }
+            else if (t >= pull_end)
+            {
+                incr = pull_mag;
+            }
+            else
+            {
+                incr = 0.0;
+            }
+            break;
+        case 2:
+            // pull then push
+            if (t > pull_begin and t < pull_end)
+            {
+                incr = (t - pull_begin) * pull_mag/(pull_end - pull_begin);
+            }
+            else if (t >= pull_end and t <= push_begin)
+            {
+                incr = pull_mag;
+            }
+            else if (t > push_begin and t < push_end)
+            {
+                incr = pull_mag + (t - push_begin) * -(push_mag + pull_mag)/(push_end - push_begin);
+            }
+            else if (t >= push_end)
+            {
+                incr = -push_mag;
+            }
+            else
+            {
+                incr = 0.0;
+            }
+            break;
+        case 3:
+            // Only pull
+            if (t > pull_begin and t < pull_end)
+            {
+                incr = (t - pull_begin)* pull_mag/(pull_end - pull_begin);
+            } else if (t > pull_end)
+            {
+                incr = pull_mag;
+            }
+            else
+            {
+                incr = 0.0;
+            }
+            break;
+            // Only push
+        case 4:
+            if (t > push_begin and t < push_end)
+            {
+                incr = (t - push_begin)* -push_mag/(push_end - push_begin);
+            } else if (t > push_end)
+            {
+                incr = -push_mag;
+            }
+            else
+            {
+                incr = 0.0;
+            }
+            break;
+    }
 
-    // pull then push
-    if (t > inflation_begin and t < inflation_end)
-    {
-        incr = (t - inflation_begin) * inflation_mag/(inflation_end - inflation_begin);
-    }
-    else if (t >= inflation_end and t <= deflation_begin)
-    {
-        incr = inflation_mag;
-    }
-    else if (t > deflation_begin and t < deflation_end)
-    {
-        incr = inflation_mag + (t - deflation_begin) * -(deflation_mag + inflation_mag)/(deflation_end - deflation_begin);
-    }
-    else if (t >= deflation_end)
-     {
-        incr = -deflation_mag;
-    }
-    else
-    {
-        incr = 0.0;
-    }
 
     return incr;
 }
