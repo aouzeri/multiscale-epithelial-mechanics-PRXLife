@@ -83,7 +83,7 @@ To do so :
 
 ## Cite 
 
-You can acknowledge this package in any publication that relies on it using reference [[2]](#References).
+You can acknowledge this package in any publication that relies on it using reference [[1]](#References).
 
 ## References
 
