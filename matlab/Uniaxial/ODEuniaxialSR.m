@@ -1,4 +1,4 @@
-%% Copyright (c) Adam Ouzeri 2021
+%% Copyright (c) Adam Ouzeri 2025
 
 function [res] = ODEuniaxial(t,y,yp,params)
 %ODEUNIAXIAL Function that encodes the system of DAE for uniaxial creep and

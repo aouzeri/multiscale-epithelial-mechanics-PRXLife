@@ -1,4 +1,4 @@
-%% Copyright (c) Adam Ouzeri 2021
+%% Copyright (c) Adam Ouzeri 2025
 
 function [res] = ODEuniaxial(t,y,yp,params)
 %ODEUNIAXIAL Function that encodes the system of DAE for uniaxial creep and
@@ -20,13 +20,6 @@ res = zeros(11,1);
 kp = params.kp; kd = params.kd; Aap0 = params.Aap0; A_lat_p0 = params.A_lat_p0; A_lat_t0 = params.A_lat_t0;
 mu = params.mu; lambda = params.lambda; eta = params.eta; C0 = params.C0;
 xiap = params.xiap; xilat = params.xilat; appliedTension = params.appliedTension;
-
-if(y(7) < 1.3)
-    stimulus = 25*(1 - exp(-t/0.001));
-else
-    stimulus = 0;
-end
-
 
 % deformation coefficients
 kappa = y(7);
@@ -157,9 +150,6 @@ dPextdkappadot = Aap0*tau;
 
 %% minimisation with respect to kappadot
 res(7) = dPsi_dkappadot + dPatot_dkappadot - dPextdkappadot;
-% res(7) = -dPextdkappadot; % external power
-% res(7) = res(7) + dPsi_dkappadot; % viscoelasticity
-% res(7) = res(7) + dPatot_dkappadot; % active elasticity
 
 %% Mass balance
 
