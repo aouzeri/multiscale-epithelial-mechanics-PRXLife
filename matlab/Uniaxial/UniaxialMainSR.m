@@ -129,7 +129,7 @@ calculateTensions;
 %% Plotting
 
 % Data from simulations
-experimentalDataRaw = load('./PaperData/khalilgharibi_data/Khalilgharibi2019_FigS3.csv');
+experimentalDataRaw = load('../PaperData/khalilgharibi_data/Khalilgharibi2019_FigS3.csv');
 % 
 
 EstimatedHeight = 1e-5; % from Khaligharibi2019_sup h = ~10 um

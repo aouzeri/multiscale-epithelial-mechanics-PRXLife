@@ -110,8 +110,7 @@ while(tn < tfinal)
 
         MetricTensorSharp = [MetricTensorSharp;y0(1:6)'];
         kappa = [kappa; y0(7)];
-%         Tau = [Tau;y0(8)];
-            Tau = [Tau;params.appliedTension];
+        Tau = [Tau;params.appliedTension];
         rho_ap = [rho_ap; y0(9)];
         rho_lat_p = [rho_lat_p; y0(10)];
         rho_lat_t = [rho_lat_t; y0(11)];
