@@ -154,12 +154,8 @@ dPatot_dkappadot = 2*dPa_ap_dkappadot + dPa_lat_p_dkappadot + dPa_lat_t_dkappado
 %% variation of external power input with respect to kappadot
 dPextdkappadot = Aap0*tau;
  
-
 %% minimisation with respect to kappadot
 res(7) = dPsi_dkappadot + dPatot_dkappadot - dPextdkappadot;
-% res(7) = -dPextdkappadot; % external power
-% res(7) = res(7) + dPsi_dkappadot; % viscoelasticity
-% res(7) = res(7) + dPatot_dkappadot; % active elasticity
 
 %% Mass balance
 
