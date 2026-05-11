@@ -77,8 +77,8 @@ class tissueMesh: public hiperlife::DistributedData
     public:
 
         int setConstraintflag        = 1;
-        int nCells                   = 0;
         int nFaces                   = 0;
+        int setLinearConstraintsflag = 1;
         std::vector<faceMesh> meshes = {};
         std::vector< int> nPointsinFace = {};
 
@@ -86,7 +86,7 @@ class tissueMesh: public hiperlife::DistributedData
         std::vector<vector<int >> facesInCell = {};
         std::vector<vector<int >> NeighboursCells = {};
 
-		void loadMesh( std::string fileName);
+		void loadMesh( std::string fileName , int _setConstraintflag, int _setLinearConstraintsflag);
         void readNeighbouringCells(const string fileName);
         void readfaceIDsinCells(const string fileName);
         void setNumberCells(const int numberCells);
@@ -120,6 +120,11 @@ class tissueMesh: public hiperlife::DistributedData
 
 void LS_K (hiperlife::FillStructure& fillStr);
 double Getloadstep(double t, double pull_begin, double pull_end, double push_begin, double push_end, int loadcase, double push_mag, double pull_mag);
+void LS_K_pp (hiperlife::FillStructure& fillStr);
+void UpdateNodalForcesfromRHS(Teuchos::RCP<hiperlife::HiPerProblem> hiperMech , double deltat);
+void GetAveragePKStressfromNodes(Teuchos::RCP<hiperlife::HiPerProblem> hiperMech, double* avgPK);
+void GetSumofNodalForces(Teuchos::RCP<hiperlife::HiPerProblem> hiperMech, double* Fsumlocal);
+
 inline std::string first_numberstring(std::string const & str)
 {
 

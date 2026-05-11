@@ -1,6 +1,6 @@
 %% Copyright (c) Adam Ouzeri 2025
 
-function [dydt] = EquiODE45(t,y,params)
+function [dydt] = EquiODESR(t,y,params)
 % Cs are all flat
 % Gs are all sharp
 %   y(1) = Gxy sharp apical

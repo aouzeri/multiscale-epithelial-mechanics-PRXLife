@@ -49,51 +49,52 @@ int main(int argc, char *argv[])
     // ---------------------------------------------------------------------------
 
     // Initializing set of parameters
-    int    gPts;
-    double deltat;
-    int nCells;
-    double kp;
-    double kd;
-    double ConcInit;
-    double bvisc;
-    double lame1;
-    double lame2;
-    double activA;
-    double activB;
-    double activL;
-    double eta_f;
-    double basaltractions;
+    int    gPts = 3;
+    double deltat = 0.001;
+    double kp = 1.0;
+    double kd = 1.0;
+    double ConcInit = 0.03;
+    double bvisc = 0.5;
+    double lame1 = 1.0;
+    double lame2 = 1.0;
+    double activA = 1.0;
+    double activB = 1.0;
+    double activL = 0.5;
+    double eta_f = 1e-8;
+    double basaltractions = 0.0;
 
-    int    loadcase; 
-    double tcycle;
-    double tequi;
-    double totalTime;
-    double deltat_max;
-    double pull_begin;
-    double pull_stretchduration;
-    double push_stretchduration;
-    double push_begin;
-    double push_mag;
-    double pull_mag;
-    bool applybasalTractionFlag;
-    bool perturbseedbucklingflag;
-    bool periodicboxflag;
+    int    loadcase = 3; 
+    double tcycle = 10000;
+    double tequi = 100.0;
+    double totalTime = 100.0;
+    double deltat_max = 1.0;
+    double pull_begin = 100.0;
+    double pull_stretchduration = 1.0;
+    double push_stretchduration = 1.0;
+    double push_begin = 110.0;
+    double push_mag = 1.0;
+    double pull_mag = 0.0;
+    bool applybasalTractionFlag = false;
+    bool perturbseedbucklingflag = false;
+    bool periodicboxflag = false;
 
     // Applied deformation
-    double DelF00;
-    double DelF01;
-    double DelF10;
-    double DelF11;
+    double DelF00 = 0.0;
+    double DelF01 = 0.0;
+    double DelF10 = 0.0;
+    double DelF11 = 0.0;
 
     // Re-stiffening parameters
-    double memb_thresh_high;
-    double memb_thresh_low;
-    double memb_lam_high;
-    double memb_lam_low;
-    int    MAXITER;
-    int    nIterChange;
-    double SOLTOL;
-    double RESTOL;
+    double memb_thresh_high = 150;
+    double memb_thresh_low = 0.0;
+    double memb_lam_high = 0.0;
+    double memb_lam_low = 0.0;
+
+    // simulation parameters
+    int    MAXITER = 10;
+    int    nIterChange = 5;
+    double SOLTOL = 1e-8;
+    double RESTOL = 1e-8;
 
     // Model parameters and solver options are read from a configuration file
     if (argc > 1)
@@ -105,7 +106,6 @@ int main(int argc, char *argv[])
 
         config.readInto(gPts, "gPts");
         config.readInto(deltat, "deltat");
-        config.readInto(nCells, "nCells");
 
         // Material parameters
         config.readInto(kp, "kp");
@@ -173,10 +173,12 @@ int main(int argc, char *argv[])
         cout << "Generating tissuemesh..." << endl;
     tissueMesh tissuemesh;
 
+    int setConstraintsflag = 1;
+    int setLinearConstraintsflag = 1;
 
     if( myRank == 0)
 	cout << "Loading mesh..." << endl;
-    tissuemesh.loadMesh("vertexmesh");
+    tissuemesh.loadMesh("vertexmesh", setConstraintsflag, setLinearConstraintsflag);
   
     if( myRank == 0)
 	cout << "Updating tissue mesh..." << endl;
@@ -184,6 +186,22 @@ int main(int argc, char *argv[])
     
     if( myRank == 0 )
         cout << "Finished generating tissuemesh..." << endl;
+
+
+    tissueMesh pptissuemesh;
+    setConstraintsflag = 0;
+    if (periodicboxflag == true)
+    {
+        setLinearConstraintsflag = 0; // No linear consrtaints when simulating the periodic box
+    } else
+    {
+        setLinearConstraintsflag = 1;
+    }
+    pptissuemesh.loadMesh("vertexmesh", setConstraintsflag, setLinearConstraintsflag);
+    pptissuemesh.Update();
+
+    if( myRank == 0 )
+     cout << "Finished generating pptissuemesh..." << endl;
 
 
     // ---------------------------------------------------------------------------
@@ -222,7 +240,7 @@ int main(int argc, char *argv[])
     // Write initial loaded mesh
     if( tissuemesh.myRank() == 0 )
         cout << "writing initial output file..." << endl;
-    tissuemesh.saveSolution("solution"+to_string(nSave), paramStr, simTime);      
+    pptissuemesh.saveSolution("solution"+to_string(nSave), paramStr, simTime);      
     nSave ++;  
 
     if( tissuemesh.myRank() == 0 )
@@ -232,6 +250,7 @@ int main(int argc, char *argv[])
         cout << "Creating the hiperproblem..." << endl;	
 
     SmartPtr<HiPerProblem> hiperProbl   = tissuemesh.generateHiPerProblem(paramStr,gPts);
+    SmartPtr<HiPerProblem> pphiperProbl = pptissuemesh.generateHiPerProblem(paramStr,gPts);
     
     if( tissuemesh.myRank() == 0 )
         cout << "Finished creating the hiperproblem..." << endl;
@@ -251,6 +270,20 @@ int main(int argc, char *argv[])
 
     //Set parameter
     double stepFactor = 0.90;
+
+    if (tissuemesh.myRank() == 0)
+    {
+        ofstream fp_td;
+        string Fdatafilename = "TimeData.txt";
+        fp_td.open(Fdatafilename, ofstream::trunc);
+        fp_td.close();
+
+        Fdatafilename = "AvgStressStrainData.txt";
+        fp_td.open(Fdatafilename, ofstream::trunc);
+        fp_td.close();
+    }
+
+
     double pull_end        = pull_begin + pull_stretchduration;
     double push_end        = push_begin + push_stretchduration;
 
@@ -258,6 +291,48 @@ int main(int argc, char *argv[])
     vector<double> Id     = {1.0, 0.0, 0.0, 1.0}; // Identity
     vector<double> Fapp   = {0.0, 0.0, 0.0, 0.0}; // Stores the total imposed deformation on the tissue
     vector<double> Fincr  = {DelF00, DelF01, DelF10, DelF11}; // total increment in F to be imposed
+
+    double Savg[4]          = {0.0, 0.0, 0.0, 0.0}; // to store the actual volume-averaged tissue tension
+
+    // Get initial average monolayer thickness
+    double hinit, havg, hlocal;
+    double z_max = -100.0;
+    double z_min = 100.0;
+    for (int i = 0; i < tissuemesh.nItem(); i++)
+    {
+        // Increment boundary conditions
+        if (tissuemesh.isItemInPart(i))
+        {
+            int locI      = tissuemesh.locIdx(i);
+            int loc_nPts  = tissuemesh.meshes[locI].nPts;
+
+            if (tissuemesh.meshes[locI].faceType >= 2)
+            {
+                for ( int j = 0; j < loc_nPts; j++ )
+                {
+                    double z = tissuemesh.fields[2 * i]->mesh->nodeCoord(j, 2, IndexType::Global);
+                    if (z > z_max)
+                    {
+                        z_max = z;
+                    }
+
+                    if (z < z_min)
+                    {
+                        z_min = z;
+                    }
+                }
+            }
+        }
+    }
+    hlocal = z_max - z_min;
+    // calculate the tissue height globally and distribute data to all processors
+    MPI_Allreduce(&hlocal, &hinit, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    
+    havg = hinit;
+
+
+
+
 
     if (tissuemesh.myRank() == 0 )
           cout << "Initial fill of hiperproblem..."<< endl;
@@ -347,18 +422,18 @@ int main(int argc, char *argv[])
 	incrDOFs->PutScalar(0.0);
         int  hpIdx    = 0;
 
-        for (int dofshandID = 0; dofshandID < hiperProbl->_dhands.size(); dofshandID++) // going through all dofHandlers (DOF and gDOF)
+        for (int fieldID = 0; fieldID < hiperProbl->_dhands.size(); fieldID++) // going through all fields (DOF and gDOF)
         {
-            auto dofshand = hiperProbl->_dhands[dofshandID];
+            auto field = hiperProbl->_dhands[fieldID];
 
-            for (int j = 0; j < dofshand->mesh->loc_nPts(); j++) // getting the number of points in that mechanics (which is equivalent the number of point in the mesh)
+            for (int j = 0; j < field->mesh->loc_nPts(); j++) // getting the number of points in that field (which is equivalent the number of point in the mesh)
             {
-                for (int dof = 0; dof < dofshand->numDOFs(); dof++) // getting to the degree of freedom of that dofHandlerS (3 for DOF and more for gDOF)
+                for (int dof = 0; dof < field->numDOFs(); dof++) // getting to the degree of freedom of that dofHandlerS (3 for DOF and more for gDOF)
                 {
-                    if (dofshandID % 2 == 0)
+                    if (fieldID % 2 == 0)
                     {
                         //~ cout << "mecID : " << mecID << ", j : " << j << ", dof " << dof << endl;
-                        int meshID = dofshandID/2;
+                        int meshID = fieldID/2;
                         int meshIDloc = tissuemesh.locIdx(meshID);
                         int loc_nPts  = tissuemesh.meshes[meshIDloc].nPts;
 
@@ -366,9 +441,9 @@ int main(int argc, char *argv[])
                         {
                             // Get X
                             vector<double> X = {0.0, 0.0, 0.0};
-                            X[0] = tissuemesh.fields[dofshandID]->mesh->nodeCoord(j, 0, IndexType::Global);
-                            X[1] = tissuemesh.fields[dofshandID]->mesh->nodeCoord(j, 1, IndexType::Global);
-                            X[2] = tissuemesh.fields[dofshandID]->mesh->nodeCoord(j, 2, IndexType::Global);
+                            X[0] = tissuemesh.fields[fieldID]->mesh->nodeCoord(j, 0, IndexType::Global);
+                            X[1] = tissuemesh.fields[fieldID]->mesh->nodeCoord(j, 1, IndexType::Global);
+                            X[2] = tissuemesh.fields[fieldID]->mesh->nodeCoord(j, 2, IndexType::Global);
 
                             // get increment value
                             vector<double> x_incr = {0.0, 0.0, 0.0};
@@ -389,7 +464,7 @@ int main(int argc, char *argv[])
                     }
                     else
                     {
-                        int meshID = dofshandID/2;
+                        int meshID = fieldID/2;
                         if (tissuemesh.isItemInPart(meshID))
                             (*incrDOFs)[0][hpIdx] = 0.0;
                     }
@@ -453,11 +528,10 @@ int main(int argc, char *argv[])
 int coutSeed = 0;
 if (perturbseedbucklingflag == 1)
         {
-            if (simTime < 1.0)
-                paramStr->dparam[9] = 0.0001;
+            if (simTime < 10.0)
+                paramStr->dparam[9] = 1e-10;
             else
                 paramStr->dparam[9] = eta_f;
-
 
             for (int i = 0; i < tissuemesh.nItem(); i++)
             {
@@ -522,6 +596,11 @@ if (perturbseedbucklingflag == 1)
         if (ierr)
         {
 
+	    if( tissuemesh.myRank() == 0  )
+                cout << "Postprocessing... " << endl;
+
+        timerstep.start("PostProc");
+
 		// Update simulation time
             simTime += deltat;
 
@@ -529,13 +608,106 @@ if (perturbseedbucklingflag == 1)
             loadVal = loadVal + loadIncr;
 
 
-	    if( tissuemesh.myRank() == 0  )
-                cout << "Postprocessing... " << endl;
+            // Add forces to AUX variables (pphiperProbl having no constraints for rhs gives nodal forces)
+            // Update pptissuemesh with the solution and then calculate the forces
+            for (int i = 0; i < pptissuemesh.fields.size(); i++)
+            {
+                pptissuemesh.fields[i]->nodeDOFs->setValue(tissuemesh.fields[i]->nodeDOFs);
+                pptissuemesh.fields[i]->nodeDOFs0->setValue(tissuemesh.fields[i]->nodeDOFs0);
+                pptissuemesh.fields[i]->nodeAuxF->setValue(tissuemesh.fields[i]->nodeAuxF);
+            }
 
-        timerstep.start("PostProc");
+	    if( tissuemesh.myRank() == 0  )
+                cout << "Updating ghosts... " << endl;
+
+        pphiperProbl->UpdateGhosts();
+
+	    if( tissuemesh.myRank() == 0  )
+                cout << "Filling linear system of pphiperProbl... " << endl;
+        pphiperProbl->FillLinearSystem();
+
+        UpdateNodalForcesfromRHS(pphiperProbl,deltat);
+
 
 	    if( tissuemesh.myRank() == 0  )
                 cout << "Printing outputs... " << endl;
+         
+            // Calculate volume averaged quantities
+            // Reference volume
+            double refVol = hiperProbl->globalIntegral("RefVol");
+
+            // Average strain
+            double Favg[4] = {};
+            double Fzz;
+            Favg[0] = hiperProbl->globalIntegral("avgF00") / refVol;
+            Favg[1] = hiperProbl->globalIntegral("avgF01") / refVol;
+            Favg[2] = hiperProbl->globalIntegral("avgF10") / refVol;
+            Favg[3] = hiperProbl->globalIntegral("avgF11") / refVol;
+            Fzz     = hiperProbl->globalIntegral("avgF22") / refVol;
+
+            // Average PK stress
+            double Pavglocal[4]  = {};
+            double Pavgglobal[4] = {0.0,0.0,0.0,0.0};
+            GetAveragePKStressfromNodes(pphiperProbl, Pavglocal);
+            Math::AX(Pavglocal,4,1.0/refVol);
+            MPI_Reduce(Pavglocal,Pavgglobal,4, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+		
+            // Average Cauchy stress
+            double Javg = Math::DetMat2x2(Favg);
+            Javg = Javg * Fzz; // J is det of 3 by 3 Favg
+            Math::MatMultT(Savg, 2, 2, 2, Pavgglobal, Favg);
+            Math::AX(Savg,4,1.0/Javg*havg); // Tissue tension scaled by the previous timestep average monolayer thickness
+
+            // Update the average monolayer thickness using Fzz
+            havg = Fzz * hinit;
+            
+            // Output status
+            if (tissuemesh.myRank() == 0)
+            {
+		cout << "Avg jacobian		      :" << Javg << endl;
+		
+                cout << "Avg tissue height            :" << havg << endl;
+
+                cout << "Average deformation gradient : [" << Favg[0] << ", " << Favg[1] << endl;
+                cout << "                               " << Favg[2] << ", " << Favg[3] << "]" << endl;
+
+                cout << "Average P-K stress           : [" << Pavgglobal[0] << ", " << Pavgglobal[1] << endl;
+                cout << "                               " << Pavgglobal[2] << ", " << Pavgglobal[3] << "]" << endl;
+
+                cout << "Average tissue tension       : [" << Savg[0] << ", " << Savg[1] << endl;
+                cout << "                               "  << Savg[2] << ", " << Savg[3] << "]" << endl;
+
+            }
+
+            // Update imposed deformation gradient
+            for (int n = 0; n< 4; n++)
+                Fapp[n] = Id[n] + Fincr[n]*loadVal;
+
+            // Save timestep and applied strain value
+            if (tissuemesh.myRank() == 0)
+            {
+                ofstream fp_td;
+                string Fdatafilename = "TimeData.txt";
+
+                fp_td.open(Fdatafilename, ofstream::app);
+                fp_td  << std::scientific;
+                fp_td  << simTime << ", "<< Fapp[0] << ", "<< Fapp[1] << ", "<< Fapp[2] << ", "<< Fapp[3]<< endl;
+                fp_td.close();
+            }
+            
+            
+            // Save average stress-strain data
+            if (tissuemesh.myRank() == 0)
+            {
+                ofstream fp_td;
+                string Fdatafilename = "AvgStressStrainData.txt";
+                    
+                fp_td.open(Fdatafilename, ofstream::app);
+                fp_td  << std::scientific;
+                fp_td  << Favg[0] << ", "<< Favg[1] << ", "<< Favg[2] << ", "<< Favg[3]<< ", " << Pavgglobal[0] << ", " << Pavgglobal[1] << ", " << Pavgglobal[2] << ", " << Pavgglobal[3] << ", " << Savg[0] << ", " << Savg[1] << ", " << Savg[2] << ", " << Savg[3] << "," << havg << "," << Fzz  << endl;
+                fp_td.close();
+            }
+
 
 
             // Update deltat    
@@ -555,7 +727,7 @@ if (perturbseedbucklingflag == 1)
 
             // Save .vtu and .vtm files
             timerstep.start("PostProc");
-            tissuemesh.saveSolution("solution"+to_string(nSave), paramStr, simTime);
+            pptissuemesh.saveSolution("solution"+to_string(nSave), paramStr, simTime);
             nSave ++;  
 
 	   

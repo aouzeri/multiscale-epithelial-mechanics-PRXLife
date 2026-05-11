@@ -190,7 +190,8 @@ void faceMesh::loadMesh(string fileName)
 
 }
 
-void tissueMesh::loadMesh( string fileName)
+void tissueMesh::loadMesh( string fileName , int _setConstraintflag, int _setLinearConstraintsflag)
+
 {
     string infoFileName = fileName + "_info.txt";
 
@@ -203,6 +204,10 @@ void tissueMesh::loadMesh( string fileName)
 
     setNItem(nFaces);
     DistributedData::Update();
+
+    setConstraintflag        = _setConstraintflag;
+    setLinearConstraintsflag = _setLinearConstraintsflag;
+
 
     vector<int > loc_nPointsinFace(nFaces,0);
 
@@ -556,8 +561,11 @@ void tissueMesh::saveSolution(string filename, SmartPtr<ParamStructure> paramStr
     
     }
 
-    // Printing the .vtu and .vtm files
-    dofsHand->printFileVtk(filename,true, simtime);
+    // Print .vtu and .vtm files
+    // dofsHand->printFileVtk(filename,true, simtime);
+
+    // Print .vtk files 
+    dofsHand->printFileLegacyVtk(filename,true);
 }
 
 SmartPtr<HiPerProblem> tissueMesh::generateHiPerProblem(SmartPtr<ParamStructure> paramStr, int gPts)
@@ -577,7 +585,18 @@ SmartPtr<HiPerProblem> tissueMesh::generateHiPerProblem(SmartPtr<ParamStructure>
 
         hiperProbl->setIntegration(integName, {fields[2*i+0]->nameTag(),fields[2*i+1]->nameTag()});
         hiperProbl->setCubatureGauss(integName, gPts);
-        hiperProbl->setElementFillings(integName, LS_K);
+
+         if (setConstraintflag == 1)
+        {
+            hiperProbl->setElementFillings(integName, LS_K);
+            hiperProbl->setGlobalIntegrals({"avgF00","avgF01","avgF10","avgF11","avgF22","RefVol"});
+        }
+        else if (setConstraintflag == 0)
+        {
+            hiperProbl->setGlobalIntegrals({"avgF00","avgF01","avgF10","avgF11","avgF22","RefVol"});
+            hiperProbl->setElementFillings(integName, LS_K_pp);
+        }
+
     }
 
     int loc_nFaces = loc_nItem();
@@ -607,9 +626,15 @@ SmartPtr<HiPerProblem> tissueMesh::generateHiPerProblem(SmartPtr<ParamStructure>
                         auto master = meshes[n].masterNodes[loc_nPts*dof + i][masterID];
                         int face = master.first;
                         int node = master.second;
-                        // Setting linear constraints between different faces
+
+                        // If generating the postprocessing hiperProblem and simulating a periodic box, then do not
+                        // set any linear constraints to be able to get the nodal forces from which the tissue tension
+                        // is calculated. In any other scenario, set the linear constraints.
+                        if (setLinearConstraintsflag == 1)
+                        {
                         hiperProbl->setLinearConstraint({2 * (n + offs_nItem()), dof, i, IndexType::Global}, 
                                                     {2 * face, dof, node, IndexType::Global}, weight, 0.0);
+                        }
                     }
                 }
             }
@@ -642,6 +667,8 @@ SmartPtr<HiPerProblem> tissueMesh::generateHiPerProblem(SmartPtr<ParamStructure>
 
 void LS_K (hiperlife::FillStructure& fillStr)
 {
+    using namespace hiperlife;
+
     //------------------------------------------------------------------
     // [1] INPUT definition
 
@@ -954,6 +981,18 @@ void LS_K (hiperlife::FillStructure& fillStr)
     double inva20    = sqrtdetG0 * J0;
     double ener0     = lame1 * ( inva10/inva20 - 2.0 ) + lame2 * (inva20-1.0) * (inva20-1.0) ;
 
+    // Global integrations
+    // average strain
+    fillStr.addToGlobalIntegral("avgF00", x[0] * normalR[0] * JR);
+    fillStr.addToGlobalIntegral("avgF01", x[0] * normalR[1] * JR);
+    fillStr.addToGlobalIntegral("avgF10", x[1] * normalR[0] * JR);
+    fillStr.addToGlobalIntegral("avgF11", x[1] * normalR[1] * JR);
+    fillStr.addToGlobalIntegral("avgF22", x[2] * normalR[2] * JR);
+
+    // Reference volume of the cell
+    fillStr.addToGlobalIntegral("RefVol", xRnR/3.0 * JR);
+
+
    
     /////////////////////////////////// FILLING THE RHS /////////////////////////////////// 
 
@@ -1264,6 +1303,82 @@ void LS_K (hiperlife::FillStructure& fillStr)
 
 }
 
+void UpdateNodalForcesfromRHS(Teuchos::RCP<hiperlife::HiPerProblem> hiperProbl , double deltat)
+{
+    hiperProbl->UpdateGhosts();
+
+    int  hpIdx = 0;
+    auto nodalforces = hiperProbl->rhs;
+
+    for (int mecID = 0; mecID < hiperProbl->_dhands.size(); mecID++)
+    {
+        auto mec = hiperProbl->_dhands[mecID];
+
+        for (int i = 0; i < mec->mesh->loc_nPts(); i++)
+        {
+            for (int dof = 0; dof < mec->numDOFs(); dof++)
+            {
+                if (mecID % 2 == 0) {
+                    const double value = (*nodalforces)[0][hpIdx]/deltat; // force has a deltat
+                    mec->nodeAuxF->setValue(dof, i, IndexType::Local, value);
+                }
+                hpIdx++;
+            }
+        }
+    }
+
+    hiperProbl->UpdateGhosts();
+}
+
+void GetAveragePKStressfromNodes(Teuchos::RCP<hiperlife::HiPerProblem> hiperProbl, double* Psumlocal)
+{
+    hiperProbl->UpdateGhosts();
+
+    for (int mecID = 0; mecID < hiperProbl->_dhands.size(); mecID++)
+    {
+        auto mec = hiperProbl->_dhands[mecID];
+        for (int i = 0; i < mec->mesh->loc_nPts(); i++)
+        {
+            for (int dofI = 0; dofI < 2; dofI++)
+            {
+                for (int dofJ = 0; dofJ < 2; dofJ++) {
+                    if (mecID % 2 == 0)
+                    {
+                        double FiI = mec->nodeAuxF->getValue(dofI, i, IndexType::Local);
+                        double XiJ = mec->mesh->nodeCoord(i, dofJ, IndexType::Local);
+
+                        Psumlocal[2 * dofI + dofJ] += FiI * XiJ;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void GetSumofNodalForces(Teuchos::RCP<hiperlife::HiPerProblem> hiperProbl, double* Fsumlocal)
+{
+    hiperProbl->UpdateGhosts();
+    auto nodalforces = hiperProbl->rhs;
+
+    for (int mecID = 0; mecID < hiperProbl->_dhands.size(); mecID++)
+    {
+        auto mec = hiperProbl->_dhands[mecID];
+        for (int i = 0; i < mec->mesh->loc_nPts(); i++)
+        {
+            for (int dofI = 0; dofI < 3; dofI++)
+            {
+                    if (mecID % 2 == 0)
+                    {
+                        double FiI = mec->nodeAuxF->getValue(dofI, i, IndexType::Local);
+
+                        Fsumlocal[dofI] += FiI;
+                    }
+            }
+        }
+    }
+}
+
+
 
 double Getloadstep(double t, double pull_begin, double pull_end,
                    double push_begin, double push_end, int loadcase, double push_mag, double pull_mag)
@@ -1351,3 +1466,439 @@ double Getloadstep(double t, double pull_begin, double pull_end,
     return incr;
 }
 
+
+void LS_K_pp (hiperlife::FillStructure& fillStr)
+{
+    
+    using namespace hiperlife;
+    
+    //------------------------------------------------------------------
+    // [1] INPUT definition
+
+    //[1.1] Load main subfill structure:
+    SubFillStructure& subFill = fillStr[0];
+
+    int nDim  = subFill.nDim; // nDim = 3
+    int DOF   = subFill.numDOFs; // DOF = 3                   //Number of degrees of freedom (3)
+    int eNN   = subFill.eNN; // eNN = 3                       //Number of neighbors to the element (3 Linear Elements)
+    int pDim  = subFill.pDim; // pDim = 2                      //Parametric dimension (2)
+    double *xe_nodes  = subFill.nborCoords.data();  //Reference surface positions
+    double *ue_nodes  = subFill.nborDOFs.data();    //Degrees of freedom
+    double *ue_nodes0 = subFill.nborDOFs0.data();   //Degrees of freedom of previous time-step
+
+    int N_k = DOF*eNN; // N_k = 9 //Row size
+    double *fe_nodes  = subFill.nborAuxF.data();  // Auxillary data defined on the nodes
+
+    //FIXME: reverse map?
+    std::map<std::string,int>::const_iterator it;
+    string key = {};
+    for (it = fillStr._dhandsTagIdx.begin(); it != fillStr._dhandsTagIdx.end(); ++it)
+    {
+        if (it->second == 0) // 0 - points to the master mechanics, 1 - points to the global mechanics
+        {
+            key = it->first;
+            break;
+        }
+    }
+
+    // Extract the faceID from the key string
+    int faceID = std::atoi(first_numberstring(key).c_str());
+
+    //[1.2] Load global DOF subfill structure
+    SubFillStructure& g_subFill = fillStr[1];
+    int gDOF   = g_subFill.numDOFs; 				//Number of global degrees of freedom 
+    int geNN   = g_subFill.eNN;
+    int gN_k   = geNN * gDOF;
+    double *g_ue_nodes  = g_subFill.nborDOFs.data();
+    double *g_ue_nodes0 = g_subFill.nborDOFs0.data();
+    double *g_ae_nodes  = g_subFill.nborAuxF.data();
+
+    double pressure = g_ue_nodes[3];
+    double dens = g_ue_nodes[4];
+    double dens0 = g_ue_nodes0[4];
+
+    double conc = fillStr.paramStr->dparam[11];
+
+    //[1.3] Load basis functions and derivatives
+    double *p_k  = subFill.nborBasisFunctionsDerivatives(0);
+    double *dp_k = subFill.nborBasisFunctionsDerivatives(1);
+
+    //[1.4] Load model parameters
+    vector<double>   dparam = fillStr.paramStr->dparam;
+    double deltat    = dparam[0];
+    double kp        = dparam[1] * deltat;
+    double kd        = dparam[2] * deltat;
+    double bVisc     = dparam[3];
+    double lame1     = dparam[4] * deltat;
+    double lame2     = dparam[5] * deltat;
+    double eta_f     = dparam[9];
+    double basaltractions   = dparam[10];
+    
+    double memb_thresh_high = dparam[12];
+    double memb_thresh_low  = dparam[13];
+    double memb_lam_high    = dparam[14] * deltat;
+    double memb_lam_low     = dparam[15] * deltat;
+
+    double activ{};
+    int    facetag   = 0;
+
+    switch(key[0])
+    {
+        case 'a':
+            activ = dparam[6] * deltat;
+            facetag = 0;
+            break;
+        case 'b':
+            activ = dparam[7] * deltat;
+            facetag = 1;
+            break;
+        case 'l':
+            activ = dparam[8] * deltat;
+            facetag = 2;
+            break;
+    }
+
+        // Determine which boundary does the lateral face belong to?
+    int    boundarytag = -1; // for apical and basal should remain unchanged
+    switch(key[1])
+    {
+        case 'T':
+            boundarytag = 0;
+            break;
+        case 'B':
+            boundarytag = 1;
+            break;
+        case 'L':
+            boundarytag = 2;
+            break;
+        case 'R':
+            boundarytag = 3;
+            break;
+    }
+
+    //------------------------------------------------------------------
+    // [2] OUTPUT definition
+    std::vector<double>& rhs_k    = fillStr.Bk(0);   // <<=== MAIN OUTPUT
+    std::vector<double>& g_rhs_k  = fillStr.Bk(1);   // <<=== MAIN OUTPUT
+    std::vector<double>& Kmat_k   = fillStr.Ak(0,0); // <<=== MAIN OUTPUT
+    std::vector<double>& Qmat_k   = fillStr.Ak(0,1); // <<=== MAIN OUTPUT
+    std::vector<double>& Rmat_k   = fillStr.Ak(1,0); // <<=== MAIN OUTPUT
+    std::vector<double>& Lmat_k   = fillStr.Ak(1,1); // <<=== MAIN OUTPUT
+
+    //----------
+    //Deformed
+    double  x[3] = {};
+    double e1[3] = {};
+    double e2[3] = {};
+    double  f[3] = {};
+
+    for ( int i = 0; i < eNN; i++ )
+    {
+        for ( int n = 0; n < nDim; n++ )
+        {
+            x[n]  +=         p_k[i] * ue_nodes[DOF*i+n];
+            e1[n] += dp_k[pDim*i+0] * ue_nodes[DOF*i+n];
+            e2[n] += dp_k[pDim*i+1] * ue_nodes[DOF*i+n];
+
+            f[n]  +=         p_k[i] * fe_nodes[DOF*i+n];
+        }
+    }
+
+
+    //Metric tensor
+    double Ip[4];
+    Ip[0] = Math::Dot3D(e1,e1);
+    Ip[1] = Math::Dot3D(e1,e2);
+    Ip[2] = Ip[1];
+    Ip[3] = Math::Dot3D(e2,e2);
+
+    double det = Math::DetMat2x2(Ip);
+    double J   = sqrt(det);
+
+    //Inverse
+    double iIp[4];
+    Math::Invert2x2(iIp,Ip);
+
+    double normal[3];
+    Math::Cross(normal,e1,e2);
+    Math::AX(normal,nDim,1.0/J);
+
+    double xn = Math::Dot3D(x,normal);
+
+    //----------
+    //Previous time-step
+    double  x0[3] = {};
+    double e10[3] = {};
+    double e20[3] = {};
+
+    for ( int i = 0; i < eNN; i++ )
+    {
+        for ( int n = 0; n < nDim; n++ )
+        {
+            x0[n]  +=         p_k[i] * ue_nodes0[DOF*i+n];
+            e10[n] += dp_k[pDim*i+0] * ue_nodes0[DOF*i+n];
+            e20[n] += dp_k[pDim*i+1] * ue_nodes0[DOF*i+n];
+        }
+    }
+
+    //Metric tensor
+    double Ip0[4];
+    Ip0[0] = Math::Dot3D(e10,e10);
+    Ip0[1] = Math::Dot3D(e10,e20);
+    Ip0[2] = Ip0[1];
+    Ip0[3] = Math::Dot3D(e20,e20);
+
+    double det0 = Math::DetMat2x2(Ip0);
+    double J0   = sqrt(det0);
+
+    //Inverse
+    double iIp0[4];
+    Math::Invert2x2(iIp0,Ip0);
+
+    double normal0[3];
+    Math::Cross(normal0,e10,e20);
+    Math::AX(normal0,nDim,1.0/J0);
+
+    double x0n0 = Math::Dot3D(x0,normal0);
+    
+
+    //----------
+    //Reference
+    double  xR[3] = {};
+    double e1R[3] = {};
+    double e2R[3] = {};
+
+    for ( int i = 0; i < eNN; i++ )
+    {
+        for ( int n = 0; n < nDim; n++ )
+        {
+            xR[n]  +=         p_k[i] * xe_nodes[nDim*i+n];
+            e1R[n] += dp_k[pDim*i+0] * xe_nodes[nDim*i+n];
+            e2R[n] += dp_k[pDim*i+1] * xe_nodes[nDim*i+n];
+        }
+    }
+
+    //Metric tensor
+    double IpR[4];
+    IpR[0] = Math::Dot3D(e1R,e1R);
+    IpR[1] = Math::Dot3D(e1R,e2R);
+    IpR[2] = IpR[1];
+    IpR[3] = Math::Dot3D(e2R,e2R);
+
+    double detR = Math::DetMat2x2(IpR);
+    double JR   = sqrt(detR);
+
+    //Inverse
+    double iIpR[4];
+    Math::Invert2x2(iIpR,IpR);
+
+    double normalR[3];
+    Math::Cross(normalR,e1R,e2R);
+    Math::AX(normalR,nDim,1.0/JR);
+
+    double xRnR = Math::Dot3D(xR,normalR);
+
+    //----------
+    //Rate-of-deformation
+    double d[4]    = {};
+    double d_Cc[4] = {};
+    double d_CC[4] = {};
+
+    Array::Copy(d,4,Ip);
+    Math::AXPY(d,4, -1.0, Ip0);
+
+    Math::MatProduct(d_Cc,2,2,2,iIp0,d);
+    Math::MatProduct(d_CC,2,2,2,d_Cc,iIp0);
+
+    double trd = (J-J0)/J0;
+
+    double  v[3] = {};
+    Array::Copy(v,3,x);
+    Math::AXPY(v,3,-1.0,x0);
+
+    double T[4]={};
+    double iT[4]={};
+    double GRef[4]={};
+    double iGRef[4]={};
+    double GRef0[4]={};
+    double iGRef0[4]={};
+    double dGRef[4]={};
+    double Voigt[12]={}; //dG^ab/dG^cd
+    double dG_GRef[12]={}, dG_GRef_Cc[12]={}, dG_GRef_cc[12]={};
+    Voigt[4*0+2*0+0] = 1.0; Voigt[4*1+2*0+0] = 0.0; Voigt[4*2+2*0+0] = 0.0;
+    Voigt[4*0+2*0+1] = 0.0; Voigt[4*1+2*0+1] = 1.0; Voigt[4*2+2*0+1] = 0.0;
+    Voigt[4*0+2*1+0] = 0.0; Voigt[4*1+2*1+0] = 1.0; Voigt[4*2+2*1+0] = 0.0;
+    Voigt[4*0+2*1+1] = 0.0; Voigt[4*1+2*1+1] = 0.0; Voigt[4*2+2*1+1] = 1.0;
+
+    // basis vectors for each face
+    double *g1e = &g_ae_nodes[0];
+    double *g2e = &g_ae_nodes[3];
+
+    // Change of basis from face to element
+    LocMongeParam::matChangeBasis(T, g1e, g2e, e1R, e2R);
+    Math::Invert2x2(iT,T);
+
+    //Expressing G in element from that of the face (g_ue_nodes correspond to the value on the face) 
+    double one = 1.0; // FE basis vector value
+    CalcdGIGRef( dG_GRef, iT, one, Voigt );
+
+    Math::AXPY(GRef,4,g_ue_nodes[0],&dG_GRef[4*0]);
+    Math::AXPY(GRef,4,g_ue_nodes[1],&dG_GRef[4*1]);
+    Math::AXPY(GRef,4,g_ue_nodes[2],&dG_GRef[4*2]);
+
+    Math::AXPY(GRef0,4,g_ue_nodes0[0],&dG_GRef[4*0]);
+    Math::AXPY(GRef0,4,g_ue_nodes0[1],&dG_GRef[4*1]);
+    Math::AXPY(GRef0,4,g_ue_nodes0[2],&dG_GRef[4*2]);
+
+    Math::Invert2x2(iGRef,GRef);
+    Math::Invert2x2(iGRef0,GRef0);
+
+    Array::Copy(dGRef,4,GRef);
+    Math::AXPY(dGRef,4,-1.0,GRef0);
+
+    Math::MatProduct(&dG_GRef_Cc[4*0],2,2,2,iGRef0,&dG_GRef[4*0]); // GRef0
+    Math::MatProduct(&dG_GRef_Cc[4*1],2,2,2,iGRef0,&dG_GRef[4*1]);
+    Math::MatProduct(&dG_GRef_Cc[4*2],2,2,2,iGRef0,&dG_GRef[4*2]);
+
+    Math::MatProduct(&dG_GRef_cc[4*0],2,2,2,&dG_GRef_Cc[4*0],iGRef0);
+    Math::MatProduct(&dG_GRef_cc[4*1],2,2,2,&dG_GRef_Cc[4*1],iGRef0);
+    Math::MatProduct(&dG_GRef_cc[4*2],2,2,2,&dG_GRef_Cc[4*2],iGRef0);
+
+    //Elasticity invariants
+    double inva1 = Math::Dot(4,GRef,Ip);
+    double sqrtdetG = sqrt(Math::DetMat2x2(GRef));
+    double inva2 = sqrtdetG * J;
+    double inva22 = inva2*inva2;
+
+    //NeoHookean
+    double ener              = lame1 * ( inva1/inva2 - 2.0 ) + lame2 * (inva2-1.0) * (inva2-1.0) ;
+    double dinva1_Ener       = lame1 /inva2;
+    double dinva2_Ener       = -lame1 * inva1/inva22 + 2.0 * lame2 * (inva2-1.0);
+    double ddinva1_Ener      = 0.0;
+    double ddinva2_Ener      = 2.0 * lame1 * inva1/(inva2*inva22) + 2.0 * lame2;
+    double dinva1dinva2_Ener = -lame1 /inva22;
+
+    //Free energy at the previous timestep
+    double inva10    = Math::Dot(4,GRef0,Ip0);
+    double sqrtdetG0 = sqrt(Math::DetMat2x2(GRef0));
+    double inva20    = sqrtdetG0 * J0;
+    double ener0     = lame1 * ( inva10/inva20 - 2.0 ) + lame2 * (inva20-1.0) * (inva20-1.0);
+
+    // Global integrations
+    // average strain
+    fillStr.addToGlobalIntegral("avgF00", x[0] * normalR[0] * JR);
+    fillStr.addToGlobalIntegral("avgF01", x[0] * normalR[1] * JR);
+    fillStr.addToGlobalIntegral("avgF10", x[1] * normalR[0] * JR);
+    fillStr.addToGlobalIntegral("avgF11", x[1] * normalR[1] * JR);
+    fillStr.addToGlobalIntegral("avgF22", x[2] * normalR[2] * JR);
+
+    // Reference volume of the cell
+    fillStr.addToGlobalIntegral("RefVol", xRnR/3.0 * JR);
+
+
+   
+    /////////////////////////////////// FILLING THE RHS /////////////////////////////////// 
+
+    for ( int i = 0; i < eNN; i++ ) {
+     
+        double dxI_Ip[4 * 3] = {}, dxI_Ip_Cc[4 * 3] = {}, dxI_Ip_CC[4 * 3] = {};
+        MetricGradient(dxI_Ip, &dp_k[2 * i], e1, e2);
+
+        Math::MatProduct(&dxI_Ip_Cc[0], 2, 2, 2, iIp0, &dxI_Ip[0]);
+        Math::MatProduct(&dxI_Ip_Cc[4], 2, 2, 2, iIp0, &dxI_Ip[4]);
+        Math::MatProduct(&dxI_Ip_Cc[8], 2, 2, 2, iIp0, &dxI_Ip[8]);
+
+        Math::MatProduct(&dxI_Ip_CC[0], 2, 2, 2, &dxI_Ip_Cc[0], iIp0);
+        Math::MatProduct(&dxI_Ip_CC[4], 2, 2, 2, &dxI_Ip_Cc[4], iIp0);
+        Math::MatProduct(&dxI_Ip_CC[8], 2, 2, 2, &dxI_Ip_Cc[8], iIp0);
+
+        double dxI_J[3] = {};
+        JacobianGradient(dxI_J, &dp_k[2 * i], e1, e2, normal);
+
+        double dxI_normal[3 * 3] = {};
+        double xdxI_normal[3] = {};
+        NormalGradient(dxI_normal, &dp_k[2 * i], e1, e2, normal, J, dxI_J);
+        NormalGradientU(xdxI_normal, &dp_k[2 * i], e1, e2, normal, 1.0 / J, x);
+
+        ///[1] Tension power
+        Math::AXPY(&rhs_k[DOF * i], nDim, activ * dens0, dxI_J);
+
+        ///[2] Cell volume constraint
+        Math::AXPY(&rhs_k[DOF * i], nDim, deltat * pressure * J * p_k[i], normal);
+        Math::AXPY(&rhs_k[DOF * i], nDim, deltat * pressure * J, xdxI_normal);
+        Math::AXPY(&rhs_k[DOF * i], nDim, deltat * pressure * xn, dxI_J);
+
+        ///[3] Elasticity
+        // dxI_psi
+        rhs_k[DOF * i + 0] += J0 * dens0 * dinva1_Ener * Math::Dot(4, GRef, &dxI_Ip[0]);
+        rhs_k[DOF * i + 1] += J0 * dens0 * dinva1_Ener * Math::Dot(4, GRef, &dxI_Ip[4]);
+        rhs_k[DOF * i + 2] += J0 * dens0 * dinva1_Ener * Math::Dot(4, GRef, &dxI_Ip[8]);
+
+        rhs_k[DOF * i + 0] += J0 * dens0 * dinva2_Ener * sqrtdetG * dxI_J[0];
+        rhs_k[DOF * i + 1] += J0 * dens0 * dinva2_Ener * sqrtdetG * dxI_J[1];
+        rhs_k[DOF * i + 2] += J0 * dens0 * dinva2_Ener * sqrtdetG * dxI_J[2];
+
+        ///[4] Surface friction dissipation
+        // dxI_v
+        rhs_k[DOF * i + 0] += J0 * eta_f * (x[0] - x0[0]) * p_k[i];
+        rhs_k[DOF * i + 1] += J0 * eta_f * (x[1] - x0[1]) * p_k[i];
+        rhs_k[DOF * i + 2] += J0 * eta_f * (x[2] - x0[2]) * p_k[i];
+
+        /// [5] Membrane elasticity
+        // higher threshold
+        if (J/JR > memb_thresh_high)
+        {
+                // Divide by JR^2 for covariance
+                rhs_k[DOF * i + 0] += memb_lam_high * 3 * (J - memb_thresh_high*JR) * (J - memb_thresh_high*JR) * dxI_J[0] /JR/JR;
+                rhs_k[DOF * i + 1] += memb_lam_high * 3 * (J - memb_thresh_high*JR) * (J - memb_thresh_high*JR) * dxI_J[1] /JR/JR;
+                rhs_k[DOF * i + 2] += memb_lam_high * 3 * (J - memb_thresh_high*JR) * (J - memb_thresh_high*JR) * dxI_J[2] /JR/JR;
+        }
+
+        // lower threshold
+            if (J/JR < memb_thresh_low)
+            {
+
+                // Divide by JR^2 for covariance
+                rhs_k[DOF * i + 0] -= memb_lam_low * 3 * (J - memb_thresh_low*JR) * (J - memb_thresh_low*JR) * dxI_J[0] /JR/JR;
+                rhs_k[DOF * i + 1] -= memb_lam_low * 3 * (J - memb_thresh_low*JR) * (J - memb_thresh_low*JR) * dxI_J[1] /JR/JR;
+                rhs_k[DOF * i + 2] -= memb_lam_low * 3 * (J - memb_thresh_low*JR) * (J - memb_thresh_low*JR) * dxI_J[2] /JR/JR;
+                }
+
+
+        ///[6] Applying constant pressure on basal face (for dome simulation without lagrangian multiplier)
+        if (facetag == 1)
+        {
+            rhs_k[DOF * i + 0] -= J0 * deltat * basaltractions * normal0[0] * p_k[i];
+            rhs_k[DOF * i + 1] -= J0 * deltat * basaltractions * normal0[1] * p_k[i];
+            rhs_k[DOF * i + 2] -= J0 * deltat * basaltractions * normal0[2] * p_k[i];
+        }
+
+    }
+
+
+    /////////////////////////////////// FILLING G_RHS and L_MAT/////////////////////////////////// 
+
+    ///[2] Cell Volume constraint
+    g_rhs_k[3] += deltat * ( xn*J - x0n0*J0);
+
+    ///[7] Density
+    g_rhs_k[4] += J0 * ( dens*J/J0 - dens0 - kp * conc + kd * dens );
+
+    /// [3] Elasticity
+    // dG_psi
+    g_rhs_k[0] += J0 * dens0 * dinva1_Ener * Math::Dot(4,Ip,&dG_GRef[4*0]);
+    g_rhs_k[1] += J0 * dens0 * dinva1_Ener * Math::Dot(4,Ip,&dG_GRef[4*1]);
+    g_rhs_k[2] += J0 * dens0 * dinva1_Ener * Math::Dot(4,Ip,&dG_GRef[4*2]);
+
+    g_rhs_k[0] += J0 * dens0 * dinva2_Ener * inva2 * 0.5 * Math::Dot(4,iGRef,&dG_GRef[4*0]);
+    g_rhs_k[1] += J0 * dens0 * dinva2_Ener * inva2 * 0.5 * Math::Dot(4,iGRef,&dG_GRef[4*1]);
+    g_rhs_k[2] += J0 * dens0 * dinva2_Ener * inva2 * 0.5 * Math::Dot(4,iGRef,&dG_GRef[4*2]);
+
+
+    ///[3] Remodeling
+    // dGId_Dremod
+    g_rhs_k[0] += bVisc * J0 * dens0 * Math::Dot(4,dGRef,&dG_GRef_cc[4*0]);
+    g_rhs_k[1] += bVisc * J0 * dens0 * Math::Dot(4,dGRef,&dG_GRef_cc[4*1]);
+    g_rhs_k[2] += bVisc * J0 * dens0 * Math::Dot(4,dGRef,&dG_GRef_cc[4*2]);
+
+}

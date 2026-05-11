@@ -1,4 +1,4 @@
-function [dydt] = EquiODE45(t,y,params)
+function [dydt] = EquiODESR(t,y,params)
 %EQUIODE45 Function that encodes the system of DAE for uniaxial creep and
 %stress relaxation
 % Cs are all flat

@@ -1,8 +1,6 @@
 %% Copyright (c) Adam Ouzeri 2025
 
-function [res] = ODEuniaxial(t,y,yp,params)
-%ODEUNIAXIAL Function that encodes the system of DAE for uniaxial creep and
-%stress relaxation
+function [res] = ODEuniaxialSR(t,y,yp,params)
 %   y(1) = G11 sharp apical
 %   y(2) = G22 sharp apical
 %   y(3) = G11 sharp lateral parallel

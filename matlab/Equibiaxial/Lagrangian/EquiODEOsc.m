@@ -1,4 +1,4 @@
-function [res] = EquiODE(t,y,yp,params, stimulus)
+function [res] = EquiODEOsc(t,y,yp,params, stimulus)
 % Cs are all flat
 % Gs are all sharp
 %   y(1) = Gxy sharp apical

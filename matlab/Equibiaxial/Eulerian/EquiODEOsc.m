@@ -1,4 +1,4 @@
-function [res] = EquiODE(t,y,yp,params, stimulus)
+function [res] = EquiODEOsc(t,y,yp,params, stimulus)
 %EQUIODE Function that encodes the system of DAE for uniaxial creep and
 %stress relaxation
 % Cs are all flat
