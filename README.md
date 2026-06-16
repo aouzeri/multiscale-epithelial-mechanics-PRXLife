@@ -20,6 +20,7 @@ The folder is organized as follows :
 .                        # <--- top-level (or root) directory of the project (called agvm)   
 ├── build                # <--- Temporary build system files (CMake, object files, etc.) : created at installation
 ├── ExperimentalResults  # <--- Folder containing the dome experimental data
+├── Matlab               # <--- Folder containing the matlab files for simulating the IagVM and post-process agVM results
 ├── post-processing      # <--- Folder containing the post-processing file used in Paraview (.pvsm)
 ├── simulation           # <--- Folder containing the meshes to run a simulation
 |   ├── results          # <--- Folder where to run the simulation
