@@ -374,6 +374,8 @@ int main(int argc, char *argv[])
         cout << "Starting simulation loop..." << endl;
 
     bool resetDeltat = true;
+    double deltat_max_original = deltat_max; // for tissue buckling simulation
+
 
     ////////////////////////////////////////////////////////////// Time -Loop ////////////////////////////////////////////////////////////// 
     while ( simTime < totalTime )
@@ -528,10 +530,14 @@ int main(int argc, char *argv[])
 int coutSeed = 0;
 if (perturbseedbucklingflag == 1)
         {
-            if (simTime < 10.0)
-                paramStr->dparam[9] = 1e-10;
-            else
-                paramStr->dparam[9] = eta_f;
+            if (simTime > tequi + push_begin - 2*deltat and simTime < tequi + push_begin  + push_stretchduration + 2*deltat) {
+                deltat_max = push_stretchduration/10.0;
+            }
+    else {
+        deltat_max = deltat_max_original;
+    }
+
+
 
             for (int i = 0; i < tissuemesh.nItem(); i++)
             {
