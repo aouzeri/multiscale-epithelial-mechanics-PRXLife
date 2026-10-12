@@ -400,6 +400,9 @@ void tissueMesh::generateDOFsHandler() // Now called DOFsHandler
 
                 _gfields->nodeDOFs->setValue(3, 0, IndexType::Local, 0.0);  // Cell pressure
                 _gfields->nodeDOFs->setValue(4, 0, IndexType::Local, 0.03); // Density
+                // _gfields->nodeDOFs->setValue(5, 0, IndexType::Local, 1.0); // bulk concentration (for superelasticity simulations)
+
+
 
                 // Initialize nodeDOFs and nodeAUX values
                 for (int j = 0; j < loc_nPts; j++) {
@@ -684,7 +687,6 @@ void LS_K (hiperlife::FillStructure& fillStr)
     double *ue_nodes0 = subFill.nborDOFs0.data();   //Degrees of freedom of previous time-step
 
     int N_k = DOF*eNN; // N_k = 9 //Row size
-    double *fe_nodes  = subFill.nborAuxF.data();  // Auxillary data defined on the nodes
 
     //FIXME: reverse map?
     std::map<std::string,int>::const_iterator it;
@@ -714,7 +716,12 @@ void LS_K (hiperlife::FillStructure& fillStr)
     double dens = g_ue_nodes[4];
     double dens0 = g_ue_nodes0[4];
 
-    double conc = fillStr.paramStr->dparam[11];
+    // bulk concentration
+    double conc = fillStr.paramStr->dparam[11]; // constant bulk concentration
+    /* // for superelasticity simulations
+    double conc0 = g_ue_nodes0[5];
+    double conc  = g_ue_nodes[5];
+    */
 
     //[1.3] Load basis functions and derivatives
     double *p_k  = subFill.nborBasisFunctionsDerivatives(0);
@@ -787,7 +794,6 @@ void LS_K (hiperlife::FillStructure& fillStr)
     double  x[3] = {};
     double e1[3] = {};
     double e2[3] = {};
-    double  f[3] = {};
 
     for ( int i = 0; i < eNN; i++ )
     {
@@ -796,8 +802,6 @@ void LS_K (hiperlife::FillStructure& fillStr)
             x[n]  +=         p_k[i] * ue_nodes[DOF*i+n];
             e1[n] += dp_k[pDim*i+0] * ue_nodes[DOF*i+n];
             e2[n] += dp_k[pDim*i+1] * ue_nodes[DOF*i+n];
-
-            f[n]  +=         p_k[i] * fe_nodes[DOF*i+n];
         }
     }
 
@@ -1256,6 +1260,17 @@ void LS_K (hiperlife::FillStructure& fillStr)
 
     Lmat_k[gDOF * 4 + 4] += J + kd * J0;
 
+
+    /*
+    /// bulk concentration (for superelasticity simulations)
+    g_rhs_k[5] +=  conc * xn*J/3.0 + dens * J - conc0 * x0n0*J0/3.0 - dens0*J0;
+    Lmat_k[gDOF * 5 + 5] += xn*J / 3.0;
+    Lmat_k[gDOF * 5 + 4] += J;
+    */
+
+
+
+
     double dG_iGRef[12], MauxI[4];
     Math::MatProduct(MauxI,2,2,2,iGRef,&dG_GRef[4*0]);
     Math::MatProduct(&dG_iGRef[4*0],2,2,2,MauxI,iGRef);
@@ -1487,7 +1502,6 @@ void LS_K_pp (hiperlife::FillStructure& fillStr)
     double *ue_nodes0 = subFill.nborDOFs0.data();   //Degrees of freedom of previous time-step
 
     int N_k = DOF*eNN; // N_k = 9 //Row size
-    double *fe_nodes  = subFill.nborAuxF.data();  // Auxillary data defined on the nodes
 
     //FIXME: reverse map?
     std::map<std::string,int>::const_iterator it;
@@ -1590,7 +1604,6 @@ void LS_K_pp (hiperlife::FillStructure& fillStr)
     double  x[3] = {};
     double e1[3] = {};
     double e2[3] = {};
-    double  f[3] = {};
 
     for ( int i = 0; i < eNN; i++ )
     {
@@ -1599,8 +1612,6 @@ void LS_K_pp (hiperlife::FillStructure& fillStr)
             x[n]  +=         p_k[i] * ue_nodes[DOF*i+n];
             e1[n] += dp_k[pDim*i+0] * ue_nodes[DOF*i+n];
             e2[n] += dp_k[pDim*i+1] * ue_nodes[DOF*i+n];
-
-            f[n]  +=         p_k[i] * fe_nodes[DOF*i+n];
         }
     }
 
@@ -1883,6 +1894,12 @@ void LS_K_pp (hiperlife::FillStructure& fillStr)
 
     ///[7] Density
     g_rhs_k[4] += J0 * ( dens*J/J0 - dens0 - kp * conc + kd * dens );
+
+    /*
+    /// bulk concentration (for superelasticity simulations)
+    g_rhs_k[5] += conc * xn*J/3.0 + dens * J - conc0 * x0n0*J0/3.0 - dens0*J0;
+    */
+
 
     /// [3] Elasticity
     // dG_psi

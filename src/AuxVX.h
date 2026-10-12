@@ -45,7 +45,7 @@ class faceMesh
         int nPts     = {};
         int nElem    = {};
         int DOF      = 3;
-        int gDOF     = 5; // G values, pressure, density
+        int gDOF     = 5; // G values, pressure, density // gDOF = 6 for superelasticity simulations (+ bulk concentration) 
         int gAux     = 6;
 
         std::vector<int>    nBorFaces     = {};
